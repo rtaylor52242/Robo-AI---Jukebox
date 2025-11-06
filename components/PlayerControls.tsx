@@ -1,8 +1,10 @@
 
+
 import React from 'react';
 import type { Track } from '../types';
-import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon } from './Icons';
+import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon } from './Icons';
 import EqPopover from './EqPopover';
+import SleepTimerPopover from './SleepTimerPopover';
 
 interface PlayerControlsProps {
   currentTrack: Track | null;
@@ -22,6 +24,8 @@ interface PlayerControlsProps {
   eqSettings: number[];
   eqPosition: { x: number; y: number };
   timeDisplayMode: 'elapsed' | 'remaining';
+  isSleepTimerPopoverOpen: boolean;
+  sleepTimerRemaining: number | null;
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -30,6 +34,8 @@ interface PlayerControlsProps {
   onSeek: (e: React.MouseEvent<HTMLDivElement>) => void;
   onAddSongsClick: () => void;
   onVolumeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onVolumeUp: () => void;
+  onVolumeDown: () => void;
   onEqToggle: () => void;
   onEqEnabledChange: (enabled: boolean) => void;
   onEqGainChange: (bandIndex: number, gain: number) => void;
@@ -37,6 +43,8 @@ interface PlayerControlsProps {
   onAnalyze: () => void;
   onEqPositionChange: (position: { x: number; y: number }) => void;
   onTimeDisplayToggle: () => void;
+  onToggleSleepTimerPopover: () => void;
+  onSetSleepTimer: (minutes: number) => void;
 }
 
 const formatTime = (timeInSeconds: number): string => {
@@ -64,6 +72,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   eqSettings,
   eqPosition,
   timeDisplayMode,
+  isSleepTimerPopoverOpen,
+  sleepTimerRemaining,
   onPlayPause,
   onNext,
   onPrev,
@@ -72,6 +82,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onSeek,
   onAddSongsClick,
   onVolumeChange,
+  onVolumeUp,
+  onVolumeDown,
   onEqToggle,
   onEqEnabledChange,
   onEqGainChange,
@@ -79,6 +91,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onAnalyze,
   onEqPositionChange,
   onTimeDisplayToggle,
+  onToggleSleepTimerPopover,
+  onSetSleepTimer,
 }) => {
   const trackName = currentTrack?.file.name.replace(/\.[^/.]+$/, "") || "No track selected";
 
@@ -154,7 +168,16 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                 <button onClick={onEqToggle} title="Equalizer" className={`transition p-1 rounded-full ${isEqEnabled ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}>
                     <EqIcon className="w-6 h-6"/>
                 </button>
-                <VolumeDownIcon className="w-6 h-6" />
+                <button 
+                    onClick={onToggleSleepTimerPopover} 
+                    title="Sleep Timer" 
+                    className={`transition p-1 rounded-full ${sleepTimerRemaining ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
+                >
+                    <SleepTimerIcon className="w-6 h-6"/>
+                </button>
+                <button onClick={onVolumeDown} title="Decrease Volume" className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]">
+                    <VolumeDownIcon className="w-6 h-6" />
+                </button>
                 <input
                   type="range"
                   min="0"
@@ -162,9 +185,12 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                   step="0.01"
                   value={volume}
                   onChange={onVolumeChange}
+                  title={`Volume: ${Math.round(volume * 100)}%`}
                   className="w-24 h-1 rounded-lg appearance-none cursor-pointer bg-[var(--bg-tertiary)]"
                 />
-                <VolumeUpIcon className="w-6 h-6" />
+                <button onClick={onVolumeUp} title="Increase Volume" className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]">
+                    <VolumeUpIcon className="w-6 h-6" />
+                </button>
 
                 {showEq && (
                   <EqPopover
@@ -177,6 +203,13 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                     onClose={onEqToggle}
                     onPositionChange={onEqPositionChange}
                   />
+                )}
+                {isSleepTimerPopoverOpen && (
+                    <SleepTimerPopover
+                        remainingTime={sleepTimerRemaining}
+                        onSetTimer={onSetSleepTimer}
+                        onClose={onToggleSleepTimerPopover}
+                    />
                 )}
             </div>
         </div>

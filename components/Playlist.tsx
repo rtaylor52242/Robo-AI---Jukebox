@@ -1,7 +1,8 @@
 
+
 import React, { useEffect, useRef, useState } from 'react';
-import type { Track, TrackMetadata } from '../types';
-import { FolderMusicIcon, MusicNoteIcon, SpinnerIcon, SearchIcon, CloseIcon, TrashIcon, HeartIcon, StarIcon, ShareIcon, PlusIcon } from './Icons';
+import type { Track, TrackMetadata, Playlist } from '../types';
+import { FolderMusicIcon, MusicNoteIcon, SpinnerIcon, SearchIcon, CloseIcon, TrashIcon, HeartIcon, StarIcon, ShareIcon, PlusIcon, PlaylistIcon, MinusIcon } from './Icons';
 
 interface PlaylistProps {
   tracks: Track[];
@@ -19,6 +20,9 @@ interface PlaylistProps {
   onShare: (track: Track) => void;
   onReorder: (dragIndex: number, dropIndex: number) => void;
   onAddToPlaylistClick: (track: Track) => void;
+  onRemoveTrackFromPlaylist: (trackUrl: string) => void;
+  isUserPlaylist: boolean;
+  playlists: Playlist[];
 }
 
 const Playlist: React.FC<PlaylistProps> = ({
@@ -36,7 +40,10 @@ const Playlist: React.FC<PlaylistProps> = ({
   onRate,
   onShare,
   onReorder,
-  onAddToPlaylistClick
+  onAddToPlaylistClick,
+  onRemoveTrackFromPlaylist,
+  isUserPlaylist,
+  playlists,
 }) => {
   const listRef = useRef<HTMLUListElement>(null);
   const activeItemRef = useRef<HTMLLIElement>(null);
@@ -130,7 +137,9 @@ const Playlist: React.FC<PlaylistProps> = ({
             const rating = trackMetadata.ratings[track.url] ?? 0;
             const isBeingDragged = draggedIndex === index;
             const isDragOver = dragOverIndex === index;
-
+            const trackPlaylists = playlists.filter(p => p.trackUrls.includes(track.url));
+            const playlistNames = trackPlaylists.map(p => p.name).join(', ');
+            const trackTitleAttr = playlistNames ? `${trackName}\nPlaylists: ${playlistNames}` : trackName;
 
             return (
                 <li
@@ -179,12 +188,29 @@ const Playlist: React.FC<PlaylistProps> = ({
                         )}
                     </div>
                     <div className="flex-grow ml-4 min-w-0">
-                        <p className="font-semibold truncate" title={trackName}>{trackName}</p>
+                        <p className="font-semibold truncate" title={trackTitleAttr}>{trackName}</p>
+                         {playlistNames && (
+                            <div className="flex items-center text-xs text-[var(--text-muted)] mt-0.5" title={`In playlists: ${playlistNames}`}>
+                                <PlaylistIcon className="w-3 h-3 mr-1.5 flex-shrink-0" />
+                                <p className="truncate">
+                                    {playlistNames}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
                 
                 <div className="flex items-center flex-shrink-0">
                     <div className="flex-shrink-0 flex items-center space-x-1 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+                        {isUserPlaylist && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onRemoveTrackFromPlaylist(track.url); }}
+                                className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
+                                title="Remove from playlist"
+                            >
+                                <MinusIcon className="w-5 h-5 hover:text-[var(--danger-primary)]" />
+                            </button>
+                        )}
                         <button
                             onClick={(e) => { e.stopPropagation(); onAddToPlaylistClick(track); }}
                             className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"

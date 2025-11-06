@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,10 +28,27 @@ export const EQ_PRESETS: { [name: string]: number[] } = {
 
 const BAND_FREQUENCIES = [60, 230, 910, 3600, 8000, 14000];
 const API_KEY = process.env.API_KEY;
+const VOLUME_STEP = 0.1;
+
+const DEFAULT_PLAYLIST_NAMES = [
+  'Afrobeat',
+  'Birthday Songs',
+  'Classical',
+  'Diss Tracks',
+  'Drill',
+  'Gangster Rap',
+  'Hip-Hop',
+  'Pop',
+  'R&B',
+  'Rock'
+];
+
+type Theme = 'robotic' | 'modern' | 'sunset' | 'forest' | 'ocean' | 'cyberpunk' | 'monochrome';
+const THEMES: Theme[] = ['robotic', 'modern', 'sunset', 'forest', 'ocean', 'cyberpunk', 'monochrome'];
+
 
 const App: React.FC = () => {
   const [allTracks, setAllTracks] = useState<Track[]>([]);
-  const [queuedTracks, setQueuedTracks] = useState<File[] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -63,7 +81,11 @@ const App: React.FC = () => {
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {} });
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  const [theme, setTheme] = useState<'robotic' | 'modern'>('robotic');
+  const [theme, setTheme] = useState<Theme>('robotic');
+  // Fix: Replace NodeJS.Timeout with number for browser compatibility.
+  const [sleepTimerId, setSleepTimerId] = useState<number | null>(null);
+  const [sleepTimerRemaining, setSleepTimerRemaining] = useState<number | null>(null);
+  const [isSleepTimerPopoverOpen, setIsSleepTimerPopoverOpen] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,8 +94,8 @@ const App: React.FC = () => {
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('jukebox-theme') as 'robotic' | 'modern' | null;
-    if (savedTheme) {
+    const savedTheme = localStorage.getItem('jukebox-theme') as Theme | null;
+    if (savedTheme && THEMES.includes(savedTheme)) {
         setTheme(savedTheme);
     }
   }, []);
@@ -82,6 +104,12 @@ const App: React.FC = () => {
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('jukebox-theme', theme);
   }, [theme]);
+
+  const handleThemeChange = () => {
+    const currentIndex = THEMES.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % THEMES.length;
+    setTheme(THEMES[nextIndex]);
+  };
 
   const systemPlaylists = useMemo<PlaylistType[]>(() => {
     const likedUrls = Object.entries(trackMetadata.likes).filter(([, liked]) => liked).map(([url]) => url);
@@ -162,18 +190,6 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (queuedTracks) {
-      const newTracks: Track[] = queuedTracks.map((file: File) => ({
-        file,
-        url: URL.createObjectURL(file),
-        relativePath: file.webkitRelativePath,
-      }));
-      setAllTracks(prev => [...prev, ...newTracks]);
-      setQueuedTracks(null);
-    }
-  }, [queuedTracks]);
-
-  useEffect(() => {
     if (currentTrackIndex !== null && !audioContextRef.current) {
       setupAudioContext();
     }
@@ -194,8 +210,17 @@ const App: React.FC = () => {
             if (!storedMetadata.analysis) storedMetadata.analysis = {};
             setTrackMetadata(storedMetadata);
         }
-        if (storedPlaylists) {
+        
+        if (storedPlaylists && storedPlaylists.length > 0) {
             setPlaylists(storedPlaylists);
+        } else {
+            const defaultPlaylists: PlaylistType[] = DEFAULT_PLAYLIST_NAMES.map(name => ({
+                id: uuidv4(),
+                name,
+                trackUrls: [],
+            }));
+            setPlaylists(defaultPlaylists);
+            await savePlaylists(defaultPlaylists);
         }
     };
     loadData();
@@ -210,6 +235,54 @@ const App: React.FC = () => {
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+  
+  useEffect(() => {
+    if (!sleepTimerRemaining || sleepTimerRemaining <= 0) {
+        return;
+    }
+
+    const intervalId = setInterval(() => {
+        setSleepTimerRemaining(prev => {
+            if (prev === null || prev <= 1) {
+                clearInterval(intervalId);
+                return null;
+            }
+            return prev - 1;
+        });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [sleepTimerRemaining]);
+
+  const handleSetSleepTimer = (minutes: number) => {
+    if (sleepTimerId) {
+        clearTimeout(sleepTimerId);
+        setSleepTimerId(null);
+    }
+    setSleepTimerRemaining(null);
+
+    if (minutes <= 0) {
+        return;
+    }
+
+    const seconds = minutes * 60;
+    setSleepTimerRemaining(seconds);
+
+    const newTimerId = setTimeout(() => {
+        setIsPlaying(false);
+        setSleepTimerRemaining(null);
+        setSleepTimerId(null);
+    }, seconds * 1000);
+
+    setSleepTimerId(newTimerId);
+  };
+
+  const handleToggleSleepTimerPopover = () => {
+    setIsSleepTimerPopoverOpen(prev => !prev);
+    if (!isSleepTimerPopoverOpen) {
+        setShowEq(false);
+    }
+  };
   
   const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -227,13 +300,15 @@ const App: React.FC = () => {
     });
 
     if (audioFiles.length > 0) {
-      const firstFile = audioFiles[0];
-      const firstTrack: Track = { file: firstFile, url: URL.createObjectURL(firstFile), relativePath: firstFile.webkitRelativePath };
-      setAllTracks([firstTrack]);
+      const newTracks: Track[] = audioFiles.map((file: File) => ({
+        file,
+        url: URL.createObjectURL(file),
+        relativePath: file.webkitRelativePath || file.name,
+      }));
+      setAllTracks(newTracks);
       setCurrentTrackIndex(0);
       setIsPlaying(true);
       setActivePlaylistId('all-tracks');
-      if (audioFiles.length > 1) setQueuedTracks(audioFiles.slice(1));
     } else {
         setAllTracks([]);
         setCurrentTrackIndex(null);
@@ -308,7 +383,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      const VOLUME_STEP = 0.05;
+      
       switch (e.code) {
         case 'Space': case 'Numpad5': e.preventDefault(); handlePlayPause(); break;
         case 'ArrowRight': case 'Numpad6': e.preventDefault(); playNext(); break;
@@ -352,6 +427,8 @@ const App: React.FC = () => {
   const handleCanPlayThrough = () => { if (audioRef.current?.src === loadingTrackUrl) setLoadingTrackUrl(null); };
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => { if (audioRef.current && !isNaN(duration) && duration > 0) audioRef.current.currentTime = (e.nativeEvent.offsetX / e.currentTarget.offsetWidth) * duration; };
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => setVolume(parseFloat(e.target.value));
+  const handleVolumeUp = () => setVolume(v => Math.min(1, v + VOLUME_STEP));
+  const handleVolumeDown = () => setVolume(v => Math.max(0, v - VOLUME_STEP));
   const handleEqEnabledChange = (enabled: boolean) => { if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume(); setIsEqEnabled(enabled); };
   const handleEqGainChange = (bandIndex: number, gain: number) => setEqSettings(p => { const n = [...p]; n[bandIndex] = gain; return n; });
   const handleEqPresetChange = (presetName: string) => { if (EQ_PRESETS[presetName]) setEqSettings(EQ_PRESETS[presetName]); };
@@ -366,7 +443,20 @@ const App: React.FC = () => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
     allTracks.forEach(track => URL.revokeObjectURL(track.url));
     setAllTracks([]); setCurrentTrackIndex(null); setIsPlaying(false); setProgress(0); setDuration(0); setCurrentTime(0); setSearchQuery('');
-    try { await clearTracks(); } catch (error) { console.error("Failed to clear tracks from DB:", error); }
+    
+    const defaultPlaylists: PlaylistType[] = DEFAULT_PLAYLIST_NAMES.map(name => ({
+        id: uuidv4(),
+        name,
+        trackUrls: [],
+    }));
+    setPlaylists(defaultPlaylists);
+
+    try { 
+        await clearTracks(); 
+        await savePlaylists(defaultPlaylists);
+    } catch (error) { 
+        console.error("Failed to clear jukebox data:", error); 
+    }
     setIsClearConfirmOpen(false);
   };
 
@@ -408,16 +498,24 @@ const App: React.FC = () => {
       if (navigator.share) { try { await navigator.share({ title: 'Check out this track!', text: `I'm listening to "${trackName}" on Robo AI Jukebox.` }); } catch (error) { if ((error as DOMException).name !== 'AbortError') console.error('Share failed:', error); } }
       else { try { await navigator.clipboard.writeText(`Listening to "${trackName}"`); alert('Track name copied!'); } catch (err) { alert('Could not copy to clipboard.'); } }
   };
-  const handlePlaylistReorder = (dragIndex: number, dropIndex: number) => {
-    const activeList = activePlaylistTracks;
-    const currentTrackUrl = currentTrackIndex !== null ? allTracks[currentTrackIndex].url : null;
-    const newOrderedList = [...activeList];
+  const handlePlaylistReorder = async (dragIndex: number, dropIndex: number) => {
+    const activePlaylist = combinedPlaylists.find(p => p.id === activePlaylistId);
+    if (!activePlaylist || activePlaylist.system) return;
+
+    const newOrderedList = [...activePlaylistTracks];
     const [draggedItem] = newOrderedList.splice(dragIndex, 1);
     newOrderedList.splice(dropIndex, 0, draggedItem);
     const newUrlOrder = newOrderedList.map(t => t.url);
-    const updatedPlaylists = combinedPlaylists.map(p => p.id === activePlaylistId ? {...p, trackUrls: newUrlOrder} : p);
-    setPlaylists(updatedPlaylists.filter(p => !p.system));
-    if (currentTrackUrl) { const newCurrentIndex = allTracks.findIndex(t => t.url === currentTrackUrl); if (newCurrentIndex !== -1) setCurrentTrackIndex(newCurrentIndex); }
+
+    const updatedUserPlaylists = playlists.map(p => {
+      if (p.id === activePlaylistId) {
+        return { ...p, trackUrls: newUrlOrder };
+      }
+      return p;
+    });
+
+    setPlaylists(updatedUserPlaylists);
+    await savePlaylists(updatedUserPlaylists);
   };
 
   const handleCreatePlaylist = async (name: string) => {
@@ -447,15 +545,30 @@ const App: React.FC = () => {
     await savePlaylists(updatedPlaylists);
     setTrackToAddToPlaylist(null);
   };
+    const handleRemoveTrackFromPlaylist = async (trackUrl: string) => {
+    const activePlaylist = playlists.find(p => p.id === activePlaylistId);
+    if (!activePlaylist || activePlaylist.system) return;
+
+    const updatedPlaylists = playlists.map(p => {
+      if (p.id === activePlaylistId) {
+        return { ...p, trackUrls: p.trackUrls.filter(url => url !== trackUrl) };
+      }
+      return p;
+    });
+
+    setPlaylists(updatedPlaylists);
+    await savePlaylists(updatedPlaylists);
+  };
 
   const currentTrack = currentTrackIndex !== null ? allTracks[currentTrackIndex] : null;
+  const activePlaylist = combinedPlaylists.find(p => p.id === activePlaylistId);
 
   return (
     <div className="flex flex-col h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <header className="p-4 flex items-center justify-between border-b border-[var(--border-primary)] shadow-md flex-shrink-0">
         <h1 className="text-2xl md:text-3xl font-bold tracking-wider text-[var(--accent-primary)] uppercase">Robo AI - Jukebox</h1>
         <div className="flex items-center space-x-2">
-            <button onClick={() => setTheme(t => t === 'robotic' ? 'modern' : 'robotic')} title="Switch Theme" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
+            <button onClick={handleThemeChange} title="Switch Theme" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
                 <ThemeIcon className="w-6 h-6" />
             </button>
             <button onClick={() => setIsHelpModalOpen(true)} title="Help" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
@@ -491,6 +604,9 @@ const App: React.FC = () => {
             onShare={handleShareTrack}
             onReorder={handlePlaylistReorder}
             onAddToPlaylistClick={(track) => setTrackToAddToPlaylist(track)}
+            onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist}
+            isUserPlaylist={activePlaylist ? !activePlaylist.system : false}
+            playlists={playlists}
             />
         </main>
       </div>
@@ -503,17 +619,28 @@ const App: React.FC = () => {
         isLoading={!!loadingTrackUrl} isImporting={isImporting} isAnalyzing={isAnalyzing}
         showEq={showEq} isEqEnabled={isEqEnabled} eqSettings={eqSettings} eqPosition={eqPosition}
         timeDisplayMode={timeDisplayMode}
+        isSleepTimerPopoverOpen={isSleepTimerPopoverOpen}
+        sleepTimerRemaining={sleepTimerRemaining}
         onPlayPause={handlePlayPause} onNext={playNext} onPrev={playPrev}
         onShuffleToggle={() => setIsShuffle(!isShuffle)} onRepeatToggle={() => setIsRepeat(!isRepeat)}
         onSeek={handleSeek} onAddSongsClick={() => fileInputRef.current?.click()}
         onVolumeChange={handleVolumeChange}
-        onEqToggle={() => setShowEq(!showEq)}
+        onVolumeUp={handleVolumeUp}
+        onVolumeDown={handleVolumeDown}
+        onEqToggle={() => {
+          setShowEq(!showEq);
+          if (!showEq) {
+            setIsSleepTimerPopoverOpen(false);
+          }
+        }}
         onEqEnabledChange={handleEqEnabledChange}
         onEqGainChange={handleEqGainChange}
         onEqPresetChange={handleEqPresetChange}
         onAnalyze={() => handleAnalyzeTrack()}
         onEqPositionChange={handleEqPositionChange}
         onTimeDisplayToggle={handleTimeDisplayToggle}
+        onToggleSleepTimerPopover={handleToggleSleepTimerPopover}
+        onSetSleepTimer={handleSetSleepTimer}
       />
 
       <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} onCanPlayThrough={handleCanPlayThrough} crossOrigin="anonymous" />
