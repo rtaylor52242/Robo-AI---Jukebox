@@ -1,14 +1,24 @@
+
+export interface AnalysisResult {
+  songStructure: string;
+  musicalElements: string;
+  lyricalComponents: string;
+  productionElements: string;
+  creativeTechnicalAspects: string;
+  regenerationPrompt: string;
+}
+
 export interface Track {
   file: File;
   url: string;
   relativePath: string;
 }
 
-// FIX: Added missing type definitions to resolve import errors across multiple components.
 export interface Playlist {
   id: string;
   name: string;
   trackUrls: string[];
+  system?: boolean;
 }
 
 export interface ListeningStats {
@@ -20,4 +30,5 @@ export interface ListeningStats {
 export interface TrackMetadata {
   likes: { [url: string]: boolean };
   ratings: { [url: string]: number };
+  analysis?: { [url: string]: AnalysisResult };
 }

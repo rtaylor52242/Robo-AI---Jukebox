@@ -41,6 +41,8 @@ const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
             <ShortcutItem keys={['Spacebar', 'Numpad 5']} description="Play / Pause" />
             <ShortcutItem keys={['ArrowRight', 'Numpad 6']} description="Next Track" />
             <ShortcutItem keys={['ArrowLeft', 'Numpad 4']} description="Previous Track" />
+            <ShortcutItem keys={['Numpad 0']} description="Toggle Shuffle" />
+            <ShortcutItem keys={['Numpad .']} description="Toggle Repeat" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-cyan-400 mb-2">Navigation</h3>

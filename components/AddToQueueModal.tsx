@@ -1,39 +1,78 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import type { Playlist } from '../types';
+import { CloseIcon, PlusIcon } from './Icons';
 
 interface AddToPlaylistModalProps {
   isOpen: boolean;
   onClose: () => void;
   playlists: Playlist[];
   onSelectPlaylist: (playlistId: string) => void;
+  onCreatePlaylist: (playlistName: string) => void;
   trackName: string | null;
 }
 
-const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose, playlists, onSelectPlaylist, trackName }) => {
+const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose, playlists, onSelectPlaylist, onCreatePlaylist, trackName }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+
   if (!isOpen) return null;
 
+  const handleCreate = () => {
+    if (newPlaylistName.trim()) {
+      onCreatePlaylist(newPlaylistName.trim());
+      setNewPlaylistName('');
+      setIsCreating(false);
+    }
+  };
+
   const trackDisplayName = trackName?.replace(/\.[^/.]+$/, "") || "this song";
+  const userPlaylists = playlists.filter(p => !p.system);
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in-up" onClick={onClose}>
       <div className="bg-slate-800 rounded-xl shadow-2xl shadow-cyan-900/50 border border-slate-700 w-full max-w-md flex flex-col" onClick={(e) => e.stopPropagation()}>
         <header className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
           <h2 className="text-xl font-bold text-cyan-400">Add to Playlist</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition rounded-full p-1 hover:bg-slate-700">
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg>
+            <CloseIcon className="w-6 h-6" />
           </button>
         </header>
         <div className="p-6 overflow-y-auto">
           <p className="text-slate-400 mb-4">
-            Select a playlist to add <strong className="text-cyan-400">{trackDisplayName}</strong> to:
+            Add <strong className="text-cyan-400">{trackDisplayName}</strong> to:
           </p>
-          {playlists.length > 0 ? (
-            <ul className="space-y-2 max-h-60 overflow-y-auto">
-              {playlists.map(playlist => (
+          {isCreating ? (
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                placeholder="New playlist name..."
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg py-2 px-3 text-slate-200 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              />
+              <button onClick={handleCreate} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold py-2 px-4 rounded-lg transition">Save</button>
+              <button onClick={() => setIsCreating(false)} className="bg-slate-600 hover:bg-slate-500 text-slate-200 font-semibold py-2 px-4 rounded-lg transition">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsCreating(true)}
+              className="w-full text-left bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center space-x-3 mb-4"
+            >
+              <PlusIcon className="w-5 h-5" />
+              <span>Create new playlist</span>
+            </button>
+          )}
+
+          {userPlaylists.length > 0 && (
+            <ul className="space-y-2 max-h-60 overflow-y-auto border-t border-slate-700 pt-4 mt-4">
+              {userPlaylists.map(playlist => (
                 <li key={playlist.id}>
                   <button
                     onClick={() => onSelectPlaylist(playlist.id)}
-                    className="w-full text-left bg-slate-700 hover:bg-cyan-500/20 hover:text-cyan-400 text-slate-300 font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex justify-between items-center"
+                    className="w-full text-left bg-slate-700/50 hover:bg-cyan-500/20 hover:text-cyan-400 text-slate-300 font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex justify-between items-center"
                   >
                     <span>{playlist.name}</span>
                     <span className="text-xs text-slate-500">{playlist.trackUrls.length} tracks</span>
@@ -41,8 +80,6 @@ const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="text-slate-500 text-center py-4">You haven't created any playlists yet.</p>
           )}
         </div>
       </div>

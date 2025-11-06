@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Track } from '../types';
-import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon } from './Icons';
+import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon } from './Icons';
 import EqPopover from './EqPopover';
 
 interface PlayerControlsProps {
@@ -15,9 +15,12 @@ interface PlayerControlsProps {
   volume: number;
   isLoading: boolean;
   isImporting: boolean;
+  isAnalyzing: boolean;
   showEq: boolean;
   isEqEnabled: boolean;
   eqSettings: number[];
+  eqPosition: { x: number; y: number };
+  timeDisplayMode: 'elapsed' | 'remaining';
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -30,6 +33,9 @@ interface PlayerControlsProps {
   onEqEnabledChange: (enabled: boolean) => void;
   onEqGainChange: (bandIndex: number, gain: number) => void;
   onEqPresetChange: (presetName: string) => void;
+  onAnalyze: () => void;
+  onEqPositionChange: (position: { x: number; y: number }) => void;
+  onTimeDisplayToggle: () => void;
 }
 
 const formatTime = (timeInSeconds: number): string => {
@@ -51,9 +57,12 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   volume,
   isLoading,
   isImporting,
+  isAnalyzing,
   showEq,
   isEqEnabled,
   eqSettings,
+  eqPosition,
+  timeDisplayMode,
   onPlayPause,
   onNext,
   onPrev,
@@ -66,6 +75,9 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onEqEnabledChange,
   onEqGainChange,
   onEqPresetChange,
+  onAnalyze,
+  onEqPositionChange,
+  onTimeDisplayToggle,
 }) => {
   const trackName = currentTrack?.file.name.replace(/\.[^/.]+$/, "") || "No track selected";
 
@@ -77,11 +89,19 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                 <p className="text-sm font-semibold truncate text-left">{trackName}</p>
                 {isLoading && <SpinnerIcon className="w-4 h-4 ml-2 animate-spin text-cyan-400" />}
             </div>
-          <div className="flex items-center space-x-2 text-xs text-slate-400 w-1/3 justify-end">
-            <span>{formatTime(currentTime)}</span>
-            <span>/</span>
-            <span>{formatTime(duration)}</span>
-          </div>
+            <div
+                className="flex items-center space-x-2 text-xs text-slate-400 w-1/3 justify-end cursor-pointer"
+                onClick={onTimeDisplayToggle}
+                title="Toggle time remaining/elapsed"
+            >
+                {timeDisplayMode === 'remaining' && currentTrack ? (
+                    <span>-{formatTime(duration - currentTime)}</span>
+                ) : (
+                    <span>{formatTime(currentTime)}</span>
+                )}
+                <span>/</span>
+                <span>{formatTime(duration)}</span>
+            </div>
         </div>
 
         {/* Progress Bar */}
@@ -95,15 +115,15 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between">
-            <div className="w-1/3">
+        <div className="flex items-center justify-around sm:justify-between flex-wrap gap-x-4 gap-y-3">
+            <div className="">
                  {playlistSize > 0 && (
                     <button onClick={onAddSongsClick} title="Add more songs" disabled={isImporting} className="text-slate-400 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Add music folder">
                         <FolderMusicIcon className="w-6 h-6"/>
                     </button>
                  )}
             </div>
-            <div className="flex items-center space-x-4 md:space-x-8">
+            <div className="flex items-center space-x-2 sm:space-x-4">
                  <button onClick={onShuffleToggle} title={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'} className={`transition ${isShuffle ? 'text-cyan-400' : 'text-slate-400 hover:text-white'}`}>
                     <ShuffleIcon className="w-6 h-6"/>
                 </button>
@@ -126,7 +146,10 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                     <RepeatIcon className="w-6 h-6"/>
                 </button>
             </div>
-            <div className="flex items-center space-x-2 w-1/3 justify-end relative">
+            <div className="flex items-center flex-wrap justify-center sm:justify-end gap-x-2 gap-y-2 relative">
+                <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing} className="transition p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <AnalyzeIcon className="w-6 h-6"/>
+                </button>
                 <button onClick={onEqToggle} title="Equalizer" className={`transition p-1 rounded-full ${isEqEnabled ? 'text-cyan-400 bg-cyan-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
                     <EqIcon className="w-6 h-6"/>
                 </button>
@@ -147,9 +170,12 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                   <EqPopover
                     isEqEnabled={isEqEnabled}
                     eqSettings={eqSettings}
+                    position={eqPosition}
                     onEnabledChange={onEqEnabledChange}
                     onGainChange={onEqGainChange}
                     onPresetChange={onEqPresetChange}
+                    onClose={onEqToggle}
+                    onPositionChange={onEqPositionChange}
                   />
                 )}
             </div>

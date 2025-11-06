@@ -89,6 +89,21 @@ export const getAllTracks = async (): Promise<StoredTrack[]> => {
     });
 };
 
+export const clearTracks = async (): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(TRACKS_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(TRACKS_STORE_NAME);
+    const request = store.clear();
+
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve();
+        request.onerror = () => {
+            console.error('Error clearing tracks store:', request.error);
+            reject(request.error);
+        };
+    });
+};
+
 export const clearAllData = async (): Promise<void> => {
     const db = await initDB();
     const transaction = db.transaction([TRACKS_STORE_NAME, PLAYLISTS_STORE_NAME, STATS_STORE_NAME, TRACK_METADATA_STORE_NAME], 'readwrite');
