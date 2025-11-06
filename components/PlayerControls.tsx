@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Track } from '../types';
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon } from './Icons';
@@ -82,15 +83,15 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   const trackName = currentTrack?.file.name.replace(/\.[^/.]+$/, "") || "No track selected";
 
   return (
-    <footer className="bg-slate-800/50 backdrop-blur-lg border-t border-slate-700/50 p-4 shadow-2xl">
+    <footer className="bg-[var(--bg-secondary)]/50 backdrop-blur-lg border-t border-[var(--border-primary)] p-4 shadow-2xl">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-2">
             <div className="flex items-center min-w-0 w-1/3">
                 <p className="text-sm font-semibold truncate text-left">{trackName}</p>
-                {isLoading && <SpinnerIcon className="w-4 h-4 ml-2 animate-spin text-cyan-400" />}
+                {isLoading && <SpinnerIcon className="w-4 h-4 ml-2 animate-spin text-[var(--accent-primary)]" />}
             </div>
             <div
-                className="flex items-center space-x-2 text-xs text-slate-400 w-1/3 justify-end cursor-pointer"
+                className="flex items-center space-x-2 text-xs text-[var(--text-secondary)] w-1/3 justify-end cursor-pointer"
                 onClick={onTimeDisplayToggle}
                 title="Toggle time remaining/elapsed"
             >
@@ -105,12 +106,12 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         </div>
 
         {/* Progress Bar */}
-        <div title="Seek" className="w-full bg-slate-700 rounded-full h-1.5 mb-4 group cursor-pointer" onClick={onSeek}>
+        <div title="Seek" className="w-full bg-[var(--bg-tertiary)] rounded-full h-1.5 mb-4 group cursor-pointer" onClick={onSeek}>
           <div
-            className="bg-gradient-to-r from-cyan-500 to-pink-500 h-1.5 rounded-full relative"
+            className="bg-gradient-to-r from-[var(--accent-primary-hover)] to-[var(--accent-secondary)] h-1.5 rounded-full relative"
             style={{ width: `${progress}%` }}
           >
-             <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+             <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 bg-[var(--text-primary)] rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
           </div>
         </div>
 
@@ -118,39 +119,39 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         <div className="flex items-center justify-around sm:justify-between flex-wrap gap-x-4 gap-y-3">
             <div className="">
                  {playlistSize > 0 && (
-                    <button onClick={onAddSongsClick} title="Add more songs" disabled={isImporting} className="text-slate-400 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Add music folder">
+                    <button onClick={onAddSongsClick} title="Add more songs" disabled={isImporting} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Add music folder">
                         <FolderMusicIcon className="w-6 h-6"/>
                     </button>
                  )}
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4">
-                 <button onClick={onShuffleToggle} title={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'} className={`transition ${isShuffle ? 'text-cyan-400' : 'text-slate-400 hover:text-white'}`}>
+                 <button onClick={onShuffleToggle} title={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'} className={`transition ${isShuffle ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
                     <ShuffleIcon className="w-6 h-6"/>
                 </button>
-                <button onClick={onPrev} title="Previous" disabled={!currentTrack} className="text-slate-400 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed">
+                <button onClick={onPrev} title="Previous" disabled={!currentTrack} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition disabled:opacity-50 disabled:cursor-not-allowed">
                     <PrevIcon className="w-8 h-8"/>
                 </button>
                 <button
                     onClick={onPlayPause}
                     title={isPlaying ? 'Pause' : 'Play'}
                     disabled={!currentTrack}
-                    className="w-14 h-14 flex items-center justify-center rounded-full bg-cyan-500 text-slate-900 hover:bg-cyan-400 transition transform hover:scale-105 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                    className="w-14 h-14 flex items-center justify-center rounded-full bg-[var(--accent-primary-hover)] text-[var(--bg-primary)] hover:bg-[var(--accent-primary)] transition transform hover:scale-105 disabled:bg-[var(--bg-tertiary)]/50 disabled:cursor-not-allowed"
                     aria-label={isPlaying ? 'Pause' : 'Play'}
                 >
                     {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
                 </button>
-                <button onClick={onNext} title="Next" disabled={!currentTrack} className="text-slate-400 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed">
+                <button onClick={onNext} title="Next" disabled={!currentTrack} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition disabled:opacity-50 disabled:cursor-not-allowed">
                     <NextIcon className="w-8 h-8"/>
                 </button>
-                <button onClick={onRepeatToggle} title={isRepeat ? 'Disable Repeat' : 'Enable Repeat'} className={`transition ${isRepeat ? 'text-cyan-400' : 'text-slate-400 hover:text-white'}`}>
+                <button onClick={onRepeatToggle} title={isRepeat ? 'Disable Repeat' : 'Enable Repeat'} className={`transition ${isRepeat ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
                     <RepeatIcon className="w-6 h-6"/>
                 </button>
             </div>
             <div className="flex items-center flex-wrap justify-center sm:justify-end gap-x-2 gap-y-2 relative">
-                <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing} className="transition p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
                     <AnalyzeIcon className="w-6 h-6"/>
                 </button>
-                <button onClick={onEqToggle} title="Equalizer" className={`transition p-1 rounded-full ${isEqEnabled ? 'text-cyan-400 bg-cyan-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                <button onClick={onEqToggle} title="Equalizer" className={`transition p-1 rounded-full ${isEqEnabled ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}>
                     <EqIcon className="w-6 h-6"/>
                 </button>
                 <VolumeDownIcon className="w-6 h-6" />
@@ -161,8 +162,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                   step="0.01"
                   value={volume}
                   onChange={onVolumeChange}
-                  className="w-24 h-1 rounded-lg appearance-none cursor-pointer bg-slate-700"
-                  style={{ accentColor: '#06b6d4' }}
+                  className="w-24 h-1 rounded-lg appearance-none cursor-pointer bg-[var(--bg-tertiary)]"
                 />
                 <VolumeUpIcon className="w-6 h-6" />
 

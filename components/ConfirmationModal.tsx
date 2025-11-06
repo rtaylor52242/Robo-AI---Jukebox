@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CloseIcon } from './Icons';
 
@@ -20,28 +21,28 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
         role="dialog"
     >
       <div 
-        className="bg-slate-800 rounded-xl shadow-2xl shadow-cyan-900/50 border border-slate-700 w-full max-w-md flex flex-col" 
+        className="bg-[var(--bg-popover)] rounded-xl shadow-2xl shadow-[var(--shadow-color)] border border-[var(--border-primary)] w-full max-w-md flex flex-col" 
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-bold text-red-400">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition rounded-full p-1 hover:bg-slate-700" aria-label="Close">
+        <header className="p-4 border-b border-[var(--border-primary)] flex justify-between items-center flex-shrink-0">
+          <h2 className="text-xl font-bold text-[var(--danger-primary)]">{title}</h2>
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition rounded-full p-1 hover:bg-[var(--bg-tertiary)]" aria-label="Close">
             <CloseIcon />
           </button>
         </header>
         <div className="p-6">
           {children}
         </div>
-        <footer className="p-4 bg-slate-800/50 rounded-b-xl flex-shrink-0 flex items-center justify-end space-x-3">
+        <footer className="p-4 bg-[var(--bg-secondary)]/50 rounded-b-xl flex-shrink-0 flex items-center justify-end space-x-3">
             <button
                 onClick={onClose}
-                className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+                className="bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--text-secondary)] font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
             >
                 Cancel
             </button>
             <button
                 onClick={onConfirm}
-                className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200"
+                className="bg-[var(--danger-secondary)] hover:bg-[var(--danger-primary)] text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200"
             >
                 Confirm
             </button>

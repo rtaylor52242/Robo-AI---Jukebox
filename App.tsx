@@ -10,8 +10,9 @@ import AnalysisModal from './components/AnalysisModal';
 import PlaylistSidebar from './components/PlaylistSidebar';
 import AddToPlaylistModal from './components/AddToQueueModal';
 import ShortcutsModal from './components/ShortcutsModal';
+import HelpModal from './components/HelpModal';
 import { clearTracks, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists } from './db';
-import { ShortcutsIcon } from './components/Icons';
+import { ShortcutsIcon, HelpIcon, ThemeIcon } from './components/Icons';
 
 export const EQ_PRESETS: { [name: string]: number[] } = {
   'Flat': [0, 0, 0, 0, 0, 0],
@@ -61,12 +62,26 @@ const App: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {} });
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [theme, setTheme] = useState<'robotic' | 'modern'>('robotic');
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('jukebox-theme') as 'robotic' | 'modern' | null;
+    if (savedTheme) {
+        setTheme(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('jukebox-theme', theme);
+  }, [theme]);
 
   const systemPlaylists = useMemo<PlaylistType[]>(() => {
     const likedUrls = Object.entries(trackMetadata.likes).filter(([, liked]) => liked).map(([url]) => url);
@@ -436,12 +451,20 @@ const App: React.FC = () => {
   const currentTrack = currentTrackIndex !== null ? allTracks[currentTrackIndex] : null;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-900 text-slate-200">
-      <header className="p-4 flex items-center justify-between border-b border-slate-700/50 shadow-md flex-shrink-0">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-wider text-cyan-400 uppercase">Robo AI - Jukebox</h1>
-        <button onClick={() => setIsShortcutsModalOpen(true)} title="Keyboard Shortcuts" className="p-2 text-slate-400 hover:text-white transition-colors rounded-full hover:bg-slate-700/50">
-            <ShortcutsIcon className="w-6 h-6" />
-        </button>
+    <div className="flex flex-col h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <header className="p-4 flex items-center justify-between border-b border-[var(--border-primary)] shadow-md flex-shrink-0">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-wider text-[var(--accent-primary)] uppercase">Robo AI - Jukebox</h1>
+        <div className="flex items-center space-x-2">
+            <button onClick={() => setTheme(t => t === 'robotic' ? 'modern' : 'robotic')} title="Switch Theme" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
+                <ThemeIcon className="w-6 h-6" />
+            </button>
+            <button onClick={() => setIsHelpModalOpen(true)} title="Help" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
+                <HelpIcon className="w-6 h-6" />
+            </button>
+            <button onClick={() => setIsShortcutsModalOpen(true)} title="Keyboard Shortcuts" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
+                <ShortcutsIcon className="w-6 h-6" />
+            </button>
+        </div>
       </header>
       
       <div className="flex flex-grow overflow-hidden">
@@ -496,11 +519,12 @@ const App: React.FC = () => {
       <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} onCanPlayThrough={handleCanPlayThrough} crossOrigin="anonymous" />
       <input type="file" ref={fileInputRef} onChange={handleFolderSelect} className="hidden" multiple {...{webkitdirectory: "", directory: ""}} />
       <ConfirmationModal isOpen={isClearConfirmOpen} onClose={() => setIsClearConfirmOpen(false)} onConfirm={handleClearPlaylist} title="Clear Entire Jukebox?">
-        <p className="text-sm text-slate-400">Are you sure you want to permanently delete all tracks and playlists? This action cannot be undone.</p>
+        <p className="text-sm text-[var(--text-secondary)]">Are you sure you want to permanently delete all tracks and playlists? This action cannot be undone.</p>
       </ConfirmationModal>
       <AnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} analysis={analysisResult} isLoading={isAnalyzing} trackName={currentTrack?.file.name ?? null} onRegenerate={() => handleAnalyzeTrack(true)} />
       <AddToPlaylistModal isOpen={!!trackToAddToPlaylist} onClose={() => setTrackToAddToPlaylist(null)} playlists={playlists} onSelectPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylistAndAdd} trackName={trackToAddToPlaylist?.file.name ?? null} />
       <ShortcutsModal isOpen={isShortcutsModalOpen} onClose={() => setIsShortcutsModalOpen(false)} />
+      <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
     </div>
   );
 };

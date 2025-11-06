@@ -26,12 +26,12 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
   const userPlaylists = playlists.filter(p => !p.system);
 
   return (
-    <aside className="w-64 bg-slate-800/30 p-4 flex-shrink-0 flex flex-col border-r border-slate-700/50">
-      <h2 className="text-xl font-bold text-slate-300 mb-4">Playlists</h2>
+    <aside className="w-64 bg-[var(--bg-secondary)]/30 p-4 flex-shrink-0 flex flex-col border-r border-[var(--border-primary)]">
+      <h2 className="text-xl font-bold text-[var(--text-primary)] mb-4">Playlists</h2>
 
       <div className="flex-grow overflow-y-auto space-y-4">
         <div>
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Library</h3>
+          <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Library</h3>
           <ul className="space-y-1">
             {systemPlaylists.map(playlist => (
               <li key={playlist.id}>
@@ -39,8 +39,8 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
                   onClick={() => onSelectPlaylist(playlist.id)}
                   className={`w-full text-left font-semibold py-2 px-3 rounded-md transition-colors text-sm flex justify-between items-center ${
                     activePlaylistId === playlist.id
-                      ? 'bg-cyan-500/20 text-cyan-400'
-                      : 'text-slate-400 hover:bg-slate-700/50'
+                      ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/50'
                   }`}
                 >
                   <span>{playlist.name}</span>
@@ -52,7 +52,7 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
         </div>
 
         <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Your Playlists</h3>
+            <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Your Playlists</h3>
              <ul className="space-y-1">
                 {userPlaylists.map(playlist => (
                   <li key={playlist.id}>
@@ -60,8 +60,8 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
                       onClick={() => onSelectPlaylist(playlist.id)}
                        className={`w-full text-left font-semibold py-2 px-3 rounded-md transition-colors text-sm flex justify-between items-center ${
                         activePlaylistId === playlist.id
-                          ? 'bg-cyan-500/20 text-cyan-400'
-                          : 'text-slate-400 hover:bg-slate-700/50'
+                          ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/50'
                       }`}
                     >
                       <span className="truncate pr-2">{playlist.name}</span>
@@ -73,7 +73,7 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
         </div>
       </div>
       
-      <div className="flex-shrink-0 pt-4 border-t border-slate-700/50">
+      <div className="flex-shrink-0 pt-4 border-t border-[var(--border-primary)]">
         {isCreating ? (
            <div className="space-y-2">
               <input
@@ -81,7 +81,7 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
                 value={newPlaylistName}
                 onChange={(e) => setNewPlaylistName(e.target.value)}
                 placeholder="New playlist name..."
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg py-1.5 px-3 text-sm text-slate-200 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"
+                className="w-full bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg py-1.5 px-3 text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none transition"
                 autoFocus
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreate();
@@ -89,14 +89,14 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ playlists, activePlay
                 }}
               />
               <div className="flex space-x-2">
-                <button onClick={handleCreate} className="flex-grow bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold py-1.5 text-sm rounded-lg transition">Create</button>
-                <button onClick={() => setIsCreating(false)} className="flex-grow bg-slate-600 hover:bg-slate-500 text-slate-200 font-semibold py-1.5 text-sm rounded-lg transition">Cancel</button>
+                <button onClick={handleCreate} className="flex-grow bg-[var(--accent-primary-hover)] hover:bg-[var(--accent-primary)] text-[var(--bg-primary)] font-bold py-1.5 text-sm rounded-lg transition">Create</button>
+                <button onClick={() => setIsCreating(false)} className="flex-grow bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--text-secondary)] font-semibold py-1.5 text-sm rounded-lg transition">Cancel</button>
               </div>
            </div>
         ) : (
             <button 
                 onClick={() => setIsCreating(true)}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-lg transition-colors"
+                className="w-full flex items-center justify-center space-x-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--text-secondary)] font-semibold py-2 px-4 rounded-lg transition-colors"
             >
                 <PlusIcon className="w-5 h-5"/>
                 <span>New Playlist</span>

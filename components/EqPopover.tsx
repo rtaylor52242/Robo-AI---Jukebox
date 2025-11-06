@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { EQ_PRESETS } from '../App';
 import { CloseIcon } from './Icons';
@@ -71,7 +72,7 @@ const EqPopover: React.FC<EqPopoverProps> = ({
         <div 
             id="eq-popover" 
             ref={popoverRef}
-            className="fixed bg-slate-800/80 backdrop-blur-md border border-slate-700 rounded-lg shadow-2xl p-4 w-96 z-20"
+            className="fixed bg-[var(--bg-popover)] backdrop-blur-md border border-[var(--border-primary)] rounded-lg shadow-2xl p-4 w-96 z-20"
             style={{ top: `${position.y}px`, left: `${position.x}px` }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -79,18 +80,18 @@ const EqPopover: React.FC<EqPopoverProps> = ({
                 className="flex justify-between items-center mb-4 cursor-move"
                 onMouseDown={handleMouseDown}
             >
-                <h3 className="font-bold text-cyan-400">Equalizer</h3>
+                <h3 className="font-bold text-[var(--accent-primary)]">Equalizer</h3>
                 <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                        <span className={`text-xs font-semibold ${isEqEnabled ? 'text-cyan-400' : 'text-slate-500'}`}>
+                        <span className={`text-xs font-semibold ${isEqEnabled ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`}>
                             {isEqEnabled ? 'ON' : 'OFF'}
                         </span>
                         <label htmlFor="eq-toggle" className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="eq-toggle" className="sr-only peer" checked={isEqEnabled} onChange={(e) => onEnabledChange(e.target.checked)} />
-                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-cyan-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                            <div className="w-11 h-6 bg-[var(--bg-tertiary)] rounded-full peer peer-focus:ring-2 peer-focus:ring-[var(--accent-primary-hover)] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent-primary-hover)]"></div>
                         </label>
                     </div>
-                     <button onClick={onClose} className="text-slate-400 hover:text-white transition rounded-full p-1 hover:bg-slate-700" aria-label="Close equalizer">
+                     <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition rounded-full p-1 hover:bg-[var(--bg-tertiary)]" aria-label="Close equalizer">
                         <CloseIcon className="w-5 h-5" />
                     </button>
                 </div>
@@ -99,7 +100,7 @@ const EqPopover: React.FC<EqPopoverProps> = ({
             <div className="flex justify-between items-center mb-4">
                 <select 
                     onChange={(e) => onPresetChange(e.target.value)} 
-                    className="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-sm w-full focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                    className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-md px-2 py-1 text-sm w-full focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none"
                     disabled={!isEqEnabled}
                 >
                     <option value="">Select Preset</option>
@@ -107,7 +108,7 @@ const EqPopover: React.FC<EqPopoverProps> = ({
                 </select>
                 <button 
                     onClick={handleReset} 
-                    className="ml-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-1 px-3 rounded-md text-sm"
+                    className="ml-2 bg-[var(--bg-tertiary)]/70 hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-semibold py-1 px-3 rounded-md text-sm"
                     disabled={!isEqEnabled}
                 >
                     Reset
@@ -124,13 +125,10 @@ const EqPopover: React.FC<EqPopoverProps> = ({
                             step="1"
                             value={gain}
                             onChange={(e) => onGainChange(index, Number(e.target.value))}
-                            className="w-24 h-1.5 appearance-none rounded-full bg-slate-600 cursor-pointer -rotate-90 origin-bottom-center disabled:opacity-50"
-                            style={{
-                                accentColor: '#06b6d4',
-                            }}
+                            className="w-24 h-1.5 appearance-none rounded-full bg-[var(--bg-tertiary)] cursor-pointer -rotate-90 origin-bottom-center disabled:opacity-50"
                             disabled={!isEqEnabled}
                         />
-                        <span className="text-xs text-slate-400 mt-4">{BAND_LABELS[index]}</span>
+                        <span className="text-xs text-[var(--text-secondary)] mt-4">{BAND_LABELS[index]}</span>
                     </div>
                 ))}
             </div>

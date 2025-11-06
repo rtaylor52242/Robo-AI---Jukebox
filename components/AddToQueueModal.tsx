@@ -31,16 +31,16 @@ const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in-up" onClick={onClose}>
-      <div className="bg-slate-800 rounded-xl shadow-2xl shadow-cyan-900/50 border border-slate-700 w-full max-w-md flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <header className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-bold text-cyan-400">Add to Playlist</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition rounded-full p-1 hover:bg-slate-700">
+      <div className="bg-[var(--bg-popover)] rounded-xl shadow-2xl shadow-[var(--shadow-color)] border border-[var(--border-primary)] w-full max-w-md flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <header className="p-4 border-b border-[var(--border-primary)] flex justify-between items-center flex-shrink-0">
+          <h2 className="text-xl font-bold text-[var(--accent-primary)]">Add to Playlist</h2>
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition rounded-full p-1 hover:bg-[var(--bg-tertiary)]">
             <CloseIcon className="w-6 h-6" />
           </button>
         </header>
         <div className="p-6 overflow-y-auto">
-          <p className="text-slate-400 mb-4">
-            Add <strong className="text-cyan-400">{trackDisplayName}</strong> to:
+          <p className="text-[var(--text-secondary)] mb-4">
+            Add <strong className="text-[var(--accent-primary)]">{trackDisplayName}</strong> to:
           </p>
           {isCreating ? (
             <div className="flex space-x-2">
@@ -49,17 +49,17 @@ const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose
                 value={newPlaylistName}
                 onChange={(e) => setNewPlaylistName(e.target.value)}
                 placeholder="New playlist name..."
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg py-2 px-3 text-slate-200 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg py-2 px-3 text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none transition"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               />
-              <button onClick={handleCreate} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold py-2 px-4 rounded-lg transition">Save</button>
-              <button onClick={() => setIsCreating(false)} className="bg-slate-600 hover:bg-slate-500 text-slate-200 font-semibold py-2 px-4 rounded-lg transition">Cancel</button>
+              <button onClick={handleCreate} className="bg-[var(--accent-primary-hover)] hover:bg-[var(--accent-primary)] text-[var(--bg-primary)] font-bold py-2 px-4 rounded-lg transition">Save</button>
+              <button onClick={() => setIsCreating(false)} className="bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--text-secondary)] font-semibold py-2 px-4 rounded-lg transition">Cancel</button>
             </div>
           ) : (
             <button
               onClick={() => setIsCreating(true)}
-              className="w-full text-left bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center space-x-3 mb-4"
+              className="w-full text-left bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--accent-primary)] font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center space-x-3 mb-4"
             >
               <PlusIcon className="w-5 h-5" />
               <span>Create new playlist</span>
@@ -67,15 +67,15 @@ const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose
           )}
 
           {userPlaylists.length > 0 && (
-            <ul className="space-y-2 max-h-60 overflow-y-auto border-t border-slate-700 pt-4 mt-4">
+            <ul className="space-y-2 max-h-60 overflow-y-auto border-t border-[var(--border-primary)] pt-4 mt-4">
               {userPlaylists.map(playlist => (
                 <li key={playlist.id}>
                   <button
                     onClick={() => onSelectPlaylist(playlist.id)}
-                    className="w-full text-left bg-slate-700/50 hover:bg-cyan-500/20 hover:text-cyan-400 text-slate-300 font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex justify-between items-center"
+                    className="w-full text-left bg-[var(--bg-tertiary)]/50 hover:bg-[var(--accent-primary)]/20 hover:text-[var(--accent-primary)] text-[var(--text-secondary)] font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex justify-between items-center"
                   >
                     <span>{playlist.name}</span>
-                    <span className="text-xs text-slate-500">{playlist.trackUrls.length} tracks</span>
+                    <span className="text-xs text-[var(--text-muted)]">{playlist.trackUrls.length} tracks</span>
                   </button>
                 </li>
               ))}
