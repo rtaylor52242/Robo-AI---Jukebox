@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { CloseIcon } from './Icons';
 
@@ -27,7 +28,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
         <header className="p-4 border-b border-[var(--border-primary)] flex justify-between items-center flex-shrink-0">
           <h2 className="text-xl font-bold text-[var(--danger-primary)]">{title}</h2>
           <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition rounded-full p-1 hover:bg-[var(--bg-tertiary)]" aria-label="Close">
-            <CloseIcon />
+            <CloseIcon className="w-6 h-6" />
           </button>
         </header>
         <div className="p-6">

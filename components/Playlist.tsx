@@ -2,12 +2,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { Track, TrackMetadata, Playlist } from '../types';
-import { FolderMusicIcon, MusicNoteIcon, SpinnerIcon, SearchIcon, CloseIcon, TrashIcon, HeartIcon, StarIcon, ShareIcon, PlusIcon, PlaylistIcon, MinusIcon } from './Icons';
+import { FolderMusicIcon, MusicNoteIcon, SpinnerIcon, SearchIcon, CloseIcon, TrashIcon, HeartIcon, StarIcon, ShareIcon, PlusIcon, PlaylistIcon, MinusIcon, SpotifyIcon } from './Icons';
 
 interface PlaylistProps {
   tracks: Track[];
   totalTrackCount: number;
-  currentTrackUrl: string | null;
+  currentTrack: Track | null;
   loadingTrackUrl: string | null;
   onTrackSelect: (track: Track) => void;
   onFolderSelectClick: () => void;
@@ -23,12 +23,13 @@ interface PlaylistProps {
   onRemoveTrackFromPlaylist: (trackUrl: string) => void;
   isUserPlaylist: boolean;
   playlists: Playlist[];
+  librarySource: 'local' | 'spotify';
 }
 
 const Playlist: React.FC<PlaylistProps> = ({
   tracks,
   totalTrackCount,
-  currentTrackUrl,
+  currentTrack,
   loadingTrackUrl,
   onTrackSelect,
   onFolderSelectClick,
@@ -44,6 +45,7 @@ const Playlist: React.FC<PlaylistProps> = ({
   onRemoveTrackFromPlaylist,
   isUserPlaylist,
   playlists,
+  librarySource,
 }) => {
   const listRef = useRef<HTMLUListElement>(null);
   const activeItemRef = useRef<HTMLLIElement>(null);
@@ -57,7 +59,7 @@ const Playlist: React.FC<PlaylistProps> = ({
         block: 'nearest',
       });
     }
-  }, [currentTrackUrl]);
+  }, [currentTrack]);
 
   const handleDrop = (dropIndex: number) => {
     if (draggedIndex !== null && draggedIndex !== dropIndex) {
@@ -67,8 +69,9 @@ const Playlist: React.FC<PlaylistProps> = ({
     setDragOverIndex(null);
   };
 
+  const currentTrackUrl = currentTrack?.url;
 
-  if (totalTrackCount === 0) {
+  if (totalTrackCount === 0 && librarySource === 'local') {
     return (
       <div className="flex-grow flex flex-col items-center justify-center text-[var(--text-secondary)] p-8 text-center">
         <div className="mb-4">
@@ -109,14 +112,16 @@ const Playlist: React.FC<PlaylistProps> = ({
                 </button>
             )}
         </div>
-        <button
-            onClick={onClearPlaylistClick}
-            title="Clear Playlist"
-            className="p-2 bg-[var(--bg-secondary)] hover:bg-[var(--danger-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--danger-primary)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger-primary)] transition-colors"
-            aria-label="Clear Playlist"
-        >
-            <TrashIcon className="w-5 h-5" />
-        </button>
+        {librarySource === 'local' && (
+            <button
+                onClick={onClearPlaylistClick}
+                title="Clear Playlist"
+                className="p-2 bg-[var(--bg-secondary)] hover:bg-[var(--danger-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--danger-primary)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger-primary)] transition-colors"
+                aria-label="Clear Playlist"
+            >
+                <TrashIcon className="w-5 h-5" />
+            </button>
+        )}
       </div>
 
 
@@ -126,33 +131,42 @@ const Playlist: React.FC<PlaylistProps> = ({
           <p className="max-w-sm">No tracks in your playlist match "<span className="text-[var(--accent-primary)] font-semibold">{searchQuery}</span>".</p>
         </div>
       )}
+      {tracks.length === 0 && librarySource === 'spotify' && !searchQuery && (
+        <div className="flex-grow flex flex-col items-center justify-center text-[var(--text-secondary)] p-8 text-center">
+          <SpotifyIcon className="w-24 h-24 text-[var(--text-muted)] mb-4" />
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Select a Playlist</h2>
+          <p className="max-w-sm">Choose one of your Spotify playlists from the sidebar to begin.</p>
+        </div>
+      )}
 
       <div className="flex-grow overflow-y-scroll">
         <ul ref={listRef} className="space-y-2">
             {tracks.map((track, index) => {
             const isPlaying = track.url === currentTrackUrl;
             const isLoading = track.url === loadingTrackUrl;
-            const trackName = track.file.name.replace(/\.[^/.]+$/, "");
+            const trackName = track.name;
             const isLiked = trackMetadata.likes[track.url] ?? false;
             const rating = trackMetadata.ratings[track.url] ?? 0;
             const isBeingDragged = draggedIndex === index;
             const isDragOver = dragOverIndex === index;
-            const trackPlaylists = playlists.filter(p => p.trackUrls.includes(track.url));
+            const trackPlaylists = track.source === 'local' ? playlists.filter(p => p.trackUrls.includes(track.url)) : [];
             const playlistNames = trackPlaylists.map(p => p.name).join(', ');
             const trackTitleAttr = playlistNames ? `${trackName}\nPlaylists: ${playlistNames}` : trackName;
-
+            const isDraggable = librarySource === 'local' && !isUserPlaylist;
             return (
                 <li
                 key={track.url}
                 ref={isPlaying ? activeItemRef : null}
                 onClick={() => onTrackSelect(track)}
-                draggable
+                draggable={isDraggable}
                 onDragStart={(e) => {
+                    if (!isDraggable) return;
                     setDraggedIndex(index);
                     e.dataTransfer.setData('text/plain', index.toString());
                     e.dataTransfer.effectAllowed = 'move';
                 }}
                 onDragEnter={() => {
+                    if (!isDraggable) return;
                     if (draggedIndex !== null && draggedIndex !== index) {
                         setDragOverIndex(index);
                     }
@@ -160,12 +174,14 @@ const Playlist: React.FC<PlaylistProps> = ({
                 onDragLeave={() => {
                    if(isDragOver) setDragOverIndex(null)
                 }}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => { if(isDraggable) e.preventDefault() }}
                 onDrop={(e) => {
+                    if (!isDraggable) return;
                     e.preventDefault();
                     handleDrop(index);
                 }}
                 onDragEnd={() => {
+                    if (!isDraggable) return;
                     setDraggedIndex(null);
                     setDragOverIndex(null);
                 }}
@@ -184,12 +200,17 @@ const Playlist: React.FC<PlaylistProps> = ({
                         {isLoading ? (
                         <SpinnerIcon className="w-6 h-6 ml-2 animate-spin text-[var(--accent-primary)]" />
                         ) : (
-                        <MusicNoteIcon className={`w-6 h-6 ml-2 ${isPlaying ? 'animate-pulse text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`} />
+                          track.source === 'spotify' 
+                            ? <SpotifyIcon className={`w-6 h-6 ml-2 ${isPlaying ? ' text-[var(--accent-primary)]' : 'text-green-500'}`} />
+                            : <MusicNoteIcon className={`w-6 h-6 ml-2 ${isPlaying ? 'animate-pulse text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`} />
                         )}
                     </div>
                     <div className="flex-grow ml-4 min-w-0">
                         <p className="font-semibold truncate" title={trackTitleAttr}>{trackName}</p>
-                         {playlistNames && (
+                         {track.source === 'spotify' && track.artists && (
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{track.artists.join(', ')}</p>
+                         )}
+                         {track.source === 'local' && playlistNames && (
                             <div className="flex items-center text-xs text-[var(--text-muted)] mt-0.5" title={`In playlists: ${playlistNames}`}>
                                 <PlaylistIcon className="w-3 h-3 mr-1.5 flex-shrink-0" />
                                 <p className="truncate">
@@ -201,50 +222,52 @@ const Playlist: React.FC<PlaylistProps> = ({
                 </div>
                 
                 <div className="flex items-center flex-shrink-0">
-                    <div className="flex-shrink-0 flex items-center space-x-1 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
-                        {isUserPlaylist && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onRemoveTrackFromPlaylist(track.url); }}
-                                className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
-                                title="Remove from playlist"
-                            >
-                                <MinusIcon className="w-5 h-5 hover:text-[var(--danger-primary)]" />
-                            </button>
-                        )}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onAddToPlaylistClick(track); }}
-                            className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
-                            title="Add to playlist"
-                        >
-                            <PlusIcon className="w-5 h-5 hover:text-[var(--accent-primary)]" />
-                        </button>
-                        <div className="flex">
-                            {[...Array(5)].map((_, i) => (
-                                <button 
-                                    key={i} 
-                                    onClick={(e) => { e.stopPropagation(); onRate(track.url, i + 1); }}
+                    {track.source === 'local' && (
+                        <div className="flex-shrink-0 flex items-center space-x-1 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+                            {isUserPlaylist && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onRemoveTrackFromPlaylist(track.url); }}
                                     className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
-                                    title={`Rate ${i + 1} star${i > 0 ? 's' : ''}`}
+                                    title="Remove from playlist"
                                 >
-                                    <StarIcon className={`w-5 h-5 transition-colors ${i < rating ? 'text-[var(--warning-primary)]' : 'hover:text-[var(--warning-primary)]'}`} filled={i < rating} />
+                                    <MinusIcon className="w-5 h-5 hover:text-[var(--danger-primary)]" />
                                 </button>
-                            ))}
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onAddToPlaylistClick(track); }}
+                                className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
+                                title="Add to playlist"
+                            >
+                                <PlusIcon className="w-5 h-5 hover:text-[var(--accent-primary)]" />
+                            </button>
+                            <div className="flex">
+                                {[...Array(5)].map((_, i) => (
+                                    <button 
+                                        key={i} 
+                                        onClick={(e) => { e.stopPropagation(); onRate(track.url, i + 1); }}
+                                        className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
+                                        title={`Rate ${i + 1} star${i > 0 ? 's' : ''}`}
+                                    >
+                                        <StarIcon className={`w-5 h-5 transition-colors ${i < rating ? 'text-[var(--warning-primary)]' : 'hover:text-[var(--warning-primary)]'}`} filled={i < rating} />
+                                    </button>
+                                ))}
+                            </div>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onLikeToggle(track.url); }}
+                                className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
+                                title={isLiked ? 'Unlike' : 'Like'}
+                            >
+                                <HeartIcon className={`w-5 h-5 transition-colors ${isLiked ? 'text-[var(--like-primary)]' : 'hover:text-[var(--like-primary)]'}`} filled={isLiked} />
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onShare(track); }}
+                                className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
+                                title="Share"
+                            >
+                                <ShareIcon className="w-5 h-5 hover:text-[var(--accent-primary)]" />
+                            </button>
                         </div>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onLikeToggle(track.url); }}
-                            className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
-                            title={isLiked ? 'Unlike' : 'Like'}
-                        >
-                            <HeartIcon className={`w-5 h-5 transition-colors ${isLiked ? 'text-[var(--like-primary)]' : 'hover:text-[var(--like-primary)]'}`} filled={isLiked} />
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onShare(track); }}
-                            className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
-                            title="Share"
-                        >
-                            <ShareIcon className="w-5 h-5 hover:text-[var(--accent-primary)]" />
-                        </button>
-                    </div>
+                    )}
                     
                     {isPlaying && !isLoading && (
                         <div className="ml-4 flex space-x-1">

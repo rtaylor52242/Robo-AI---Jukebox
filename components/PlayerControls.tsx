@@ -94,15 +94,24 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onToggleSleepTimerPopover,
   onSetSleepTimer,
 }) => {
-  const trackName = currentTrack?.file.name.replace(/\.[^/.]+$/, "") || "No track selected";
+  const trackName = currentTrack?.name || "No track selected";
+  const trackSource = currentTrack?.source ?? 'local';
 
   return (
     <footer className="bg-[var(--bg-secondary)]/50 backdrop-blur-lg border-t border-[var(--border-primary)] p-4 shadow-2xl">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-2">
             <div className="flex items-center min-w-0 w-1/3">
-                <p className="text-sm font-semibold truncate text-left">{trackName}</p>
-                {isLoading && <SpinnerIcon className="w-4 h-4 ml-2 animate-spin text-[var(--accent-primary)]" />}
+              {currentTrack?.source === 'spotify' && currentTrack.albumArtUrl && (
+                  <img src={currentTrack.albumArtUrl} alt={currentTrack.album} className="w-12 h-12 rounded-md mr-3" />
+              )}
+              <div className="flex-grow min-w-0">
+                  <p className="text-sm font-semibold truncate text-left">{trackName}</p>
+                  {currentTrack?.artists && (
+                    <p className="text-xs text-[var(--text-secondary)] truncate">{currentTrack.artists.join(', ')}</p>
+                  )}
+              </div>
+              {isLoading && <SpinnerIcon className="w-4 h-4 ml-2 animate-spin text-[var(--accent-primary)]" />}
             </div>
             <div
                 className="flex items-center space-x-2 text-xs text-[var(--text-secondary)] w-1/3 justify-end cursor-pointer"
@@ -132,7 +141,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         {/* Controls */}
         <div className="flex items-center justify-around sm:justify-between flex-wrap gap-x-4 gap-y-3">
             <div className="">
-                 {playlistSize > 0 && (
+                 {playlistSize > 0 && trackSource === 'local' && (
                     <button onClick={onAddSongsClick} title="Add more songs" disabled={isImporting} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Add music folder">
                         <FolderMusicIcon className="w-6 h-6"/>
                     </button>
@@ -162,10 +171,10 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                 </button>
             </div>
             <div className="flex items-center flex-wrap justify-center sm:justify-end gap-x-2 gap-y-2 relative">
-                <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
+                <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing || trackSource !== 'local'} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
                     <AnalyzeIcon className="w-6 h-6"/>
                 </button>
-                <button onClick={onEqToggle} title="Equalizer" className={`transition p-1 rounded-full ${isEqEnabled ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}>
+                <button onClick={onEqToggle} title="Equalizer" disabled={trackSource !== 'local'} className={`transition p-1 rounded-full ${isEqEnabled ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     <EqIcon className="w-6 h-6"/>
                 </button>
                 <button 

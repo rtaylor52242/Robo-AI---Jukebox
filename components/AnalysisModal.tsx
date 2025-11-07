@@ -27,11 +27,11 @@ const AnalysisSection: React.FC<{ title: string; content: string; }> = ({ title,
     const handleCopy = () => {
         navigator.clipboard.writeText(content).then(() => {
             setCopyText('Copied!');
-            setTimeout(() => setCopyText('Copy'), 2000);
+            window.setTimeout(() => setCopyText('Copy'), 2000);
         }).catch(err => {
             console.error("Failed to copy text:", err);
             setCopyText('Error');
-            setTimeout(() => setCopyText('Copy'), 2000);
+            window.setTimeout(() => setCopyText('Copy'), 2000);
         });
     };
 
@@ -84,7 +84,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, analysis
     try {
       await navigator.clipboard.writeText(fullText);
       setCopyAllText('Copied!');
-      setTimeout(() => setCopyAllText('Copy All'), 2000);
+      window.setTimeout(() => setCopyAllText('Copy All'), 2000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
       setCopyAllText('Error');

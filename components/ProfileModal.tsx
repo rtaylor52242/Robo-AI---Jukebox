@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+
+
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { ListeningStats, Track } from '../types';
 import { CloseIcon, TrashIcon } from './Icons';
 
@@ -8,6 +10,8 @@ interface ProfileModalProps {
   stats: ListeningStats;
   playlist: Track[];
   onResetStats: () => void;
+  userSpotifyClientId: string;
+  onSaveSpotifyClientId: (clientId: string) => void;
 }
 
 const formatTime = (totalSeconds: number): string => {
@@ -24,82 +28,120 @@ const formatTime = (totalSeconds: number): string => {
     return result || '0 minutes';
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, playlist, onResetStats }) => {
-  if (!isOpen) return null;
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, playlist, onResetStats, userSpotifyClientId, onSaveSpotifyClientId }) => {
+  const [clientIdInput, setClientIdInput] = useState(userSpotifyClientId);
 
-  const getTrackName = (url: string) => {
+  useEffect(() => {
+    setClientIdInput(userSpotifyClientId);
+  }, [userSpotifyClientId]);
+
+  const getTrackName = useCallback((url: string) => {
     const track = playlist.find(t => t.url === url);
-    return track ? track.file.name.replace(/\.[^/.]+$/, '') : 'Unknown Track';
-  };
+    return track ? track.name : 'Unknown Track';
+  }, [playlist]);
 
   const topTracks = useMemo(() => {
-    // Fix: Using Object.keys and sorting by value avoids type inference issues with Object.entries, resolving the arithmetic operation error.
     return Object.keys(stats.playCounts)
       .sort((a, b) => stats.playCounts[b] - stats.playCounts[a])
       .slice(0, 5)
       .map(url => ({
+        url,
         name: getTrackName(url),
         count: stats.playCounts[url],
       }));
-  }, [stats.playCounts, playlist]);
+  }, [stats.playCounts, getTrackName]);
 
   const recentHistory = useMemo(() => {
-    return stats.history.map(url => getTrackName(url));
-  }, [stats.history, playlist]);
+    return stats.history
+      .filter(Boolean)
+      .slice(0, 5)
+      .map(url => ({
+        url,
+        name: getTrackName(url),
+    }));
+  }, [stats.history, getTrackName]);
+  
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-slate-800 rounded-xl shadow-2xl shadow-cyan-900/50 border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <header className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-bold text-cyan-400">Your Listening Profile</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition rounded-full p-1 hover:bg-slate-700">
-            <CloseIcon />
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in-up" onClick={onClose}>
+      <div className="bg-[var(--bg-popover)] rounded-xl shadow-2xl shadow-[var(--shadow-color)] border border-[var(--border-primary)] w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <header className="p-4 border-b border-[var(--border-primary)] flex justify-between items-center flex-shrink-0">
+          <h2 className="text-xl font-bold text-[var(--accent-primary)]">Your Listening Profile</h2>
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition rounded-full p-1 hover:bg-[var(--bg-tertiary)]">
+            <CloseIcon className="w-6 h-6" />
           </button>
         </header>
         <div className="p-6 overflow-y-auto space-y-6">
           
           <div>
-            <h3 className="text-lg font-semibold text-cyan-400 mb-2">Total Listening Time</h3>
-            <p className="text-3xl font-bold text-slate-200">{formatTime(stats.totalPlayTime)}</p>
+            <h3 className="text-lg font-semibold text-[var(--accent-primary)] mb-2">Total Listening Time</h3>
+            <p className="text-3xl font-bold text-[var(--text-primary)]">{formatTime(stats.totalPlayTime)}</p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-lg font-semibold text-cyan-400 mb-3">Top 5 Most Played</h3>
+              <h3 className="text-lg font-semibold text-[var(--accent-primary)] mb-3">Top 5 Most Played</h3>
               {topTracks.length > 0 ? (
                 <ul className="space-y-2">
                   {topTracks.map((track, index) => (
-                    <li key={index} className="flex items-center justify-between bg-slate-700/50 p-2 rounded-md">
+                    <li key={track.url} className="flex items-center justify-between bg-[var(--bg-secondary)]/50 p-2 rounded-md">
                       <span className="truncate pr-4">{index + 1}. {track.name}</span>
-                      <span className="text-xs bg-cyan-800 text-cyan-300 px-2 py-0.5 rounded-full flex-shrink-0">{track.count} plays</span>
+                      <span className="text-xs bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] px-2 py-0.5 rounded-full flex-shrink-0">{track.count} plays</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-slate-500 italic">No listening data yet.</p>
+                <p className="text-[var(--text-muted)] italic">No listening data yet.</p>
               )}
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold text-cyan-400 mb-3">Recently Played</h3>
+              <h3 className="text-lg font-semibold text-[var(--accent-primary)] mb-3">Recently Played</h3>
               {recentHistory.length > 0 ? (
                 <ul className="space-y-2">
-                  {recentHistory.map((name, index) => (
-                    <li key={index} className="bg-slate-700/50 p-2 rounded-md truncate">{name}</li>
+                  {recentHistory.map((track, index) => (
+                    <li key={`${track.url}-${index}`} className="bg-[var(--bg-secondary)]/50 p-2 rounded-md truncate">{track.name}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-slate-500 italic">No recent history.</p>
+                <p className="text-[var(--text-muted)] italic">No recent history.</p>
               )}
             </div>
           </div>
+          
+          <div className="border-t border-[var(--border-primary)] pt-6">
+            <h3 className="text-lg font-semibold text-[var(--accent-primary)] mb-3">Spotify Integration</h3>
+             <label htmlFor="spotify-client-id" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Spotify Client ID
+            </label>
+            <div className="flex space-x-2">
+                <input
+                id="spotify-client-id"
+                type="text"
+                value={clientIdInput}
+                onChange={(e) => setClientIdInput(e.target.value)}
+                placeholder="Enter your Spotify Client ID"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg py-2 px-3 text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none transition"
+                />
+                <button
+                onClick={() => onSaveSpotifyClientId(clientIdInput)}
+                className="bg-[var(--accent-primary-hover)] hover:bg-[var(--accent-primary)] text-[var(--bg-primary)] font-bold py-2 px-4 rounded-lg transition"
+                >
+                Save
+                </button>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mt-2 leading-relaxed">
+                If you encounter connection errors, you can provide your own Client ID. In your Spotify Developer Dashboard, ensure the Redirect URI is set to exactly: <code className="bg-[var(--bg-secondary)] p-1 rounded text-[var(--text-primary)]">{`${window.location.origin}/`}</code>
+            </p>
+          </div>
 
         </div>
-        <footer className="p-4 border-t border-slate-700 flex-shrink-0 flex items-center justify-end">
+        <footer className="p-4 border-t border-[var(--border-primary)] flex-shrink-0 flex items-center justify-end">
           <button
             onClick={onResetStats}
             title="Reset all stats"
-            className="flex items-center space-x-2 bg-red-800 hover:bg-red-700 text-red-100 font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+            className="flex items-center space-x-2 bg-[var(--danger-secondary)] hover:bg-[var(--danger-primary)] text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
           >
             <TrashIcon className="w-5 h-5" />
             <span>Reset Stats</span>

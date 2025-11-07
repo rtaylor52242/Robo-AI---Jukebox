@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import type { Playlist } from '../types';
 import { CloseIcon, PlusIcon } from './Icons';
 
-interface AddToPlaylistModalProps {
+interface AddToQueueModalProps {
   isOpen: boolean;
   onClose: () => void;
   playlists: Playlist[];
@@ -12,7 +12,7 @@ interface AddToPlaylistModalProps {
   trackName: string | null;
 }
 
-const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose, playlists, onSelectPlaylist, onCreatePlaylist, trackName }) => {
+const AddToQueueModal: React.FC<AddToQueueModalProps> = ({ isOpen, onClose, playlists, onSelectPlaylist, onCreatePlaylist, trackName }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
 
@@ -87,4 +87,4 @@ const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose
   );
 };
 
-export default AddToPlaylistModal;
+export default AddToQueueModal;

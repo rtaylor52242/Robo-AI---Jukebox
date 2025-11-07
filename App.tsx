@@ -3,17 +3,18 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
-import type { Track, TrackMetadata, AnalysisResult, Playlist as PlaylistType } from './types';
+import type { Track, TrackMetadata, AnalysisResult, Playlist as PlaylistType, ListeningStats } from './types';
 import Playlist from './components/Playlist';
 import PlayerControls from './components/PlayerControls';
 import ConfirmationModal from './components/ConfirmationModal';
 import AnalysisModal from './components/AnalysisModal';
 import PlaylistSidebar from './components/PlaylistSidebar';
-import AddToPlaylistModal from './components/AddToQueueModal';
+import AddToQueueModal from './components/AddToQueueModal';
 import ShortcutsModal from './components/ShortcutsModal';
 import HelpModal from './components/HelpModal';
-import { clearTracks, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists } from './db';
-import { ShortcutsIcon, HelpIcon, ThemeIcon } from './components/Icons';
+import ProfileModal from './components/ProfileModal';
+import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats } from './db';
+import { ShortcutsIcon, HelpIcon, ThemeIcon, SpotifyIcon, UserIcon } from './components/Icons';
 
 export const EQ_PRESETS: { [name: string]: number[] } = {
   'Flat': [0, 0, 0, 0, 0, 0],
@@ -28,140 +29,142 @@ export const EQ_PRESETS: { [name: string]: number[] } = {
 
 const BAND_FREQUENCIES = [60, 230, 910, 3600, 8000, 14000];
 const API_KEY = process.env.API_KEY;
+const DEFAULT_SPOTIFY_CLIENT_ID = '5645471049f840c4b6f9a3f688bf8795';
+const SPOTIFY_REDIRECT_URI = `${window.location.origin}/`;
+const SPOTIFY_SCOPES = 'streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative';
+
 const VOLUME_STEP = 0.1;
 
-const DEFAULT_PLAYLIST_NAMES = [
-  'Afrobeat',
-  'Birthday Songs',
-  'Classical',
-  'Diss Tracks',
-  'Drill',
-  'Gangster Rap',
-  'Hip-Hop',
-  'Pop',
-  'R&B',
-  'Rock'
-];
+const DEFAULT_PLAYLIST_NAMES = [ 'Afrobeat', 'Birthday Songs', 'Classical', 'Diss Tracks', 'Drill', 'Gangster Rap', 'Hip-Hop', 'Pop', 'R&B', 'Rock' ];
 
 type Theme = 'robotic' | 'modern' | 'sunset' | 'forest' | 'ocean' | 'cyberpunk' | 'monochrome';
 const THEMES: Theme[] = ['robotic', 'modern', 'sunset', 'forest', 'ocean', 'cyberpunk', 'monochrome'];
 
-
 const App: React.FC = () => {
+  // --- Core State ---
   const [allTracks, setAllTracks] = useState<Track[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isShuffle, setIsShuffle] = useState<boolean>(false);
-  const [isRepeat, setIsRepeat] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [volume, setVolume] = useState<number>(1);
+
+  // --- UI/Mode State ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isShuffle, setIsShuffle] = useState<boolean>(false);
+  const [isRepeat, setIsRepeat] = useState<boolean>(false);
   const [loadingTrackUrl, setLoadingTrackUrl] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [timeDisplayMode, setTimeDisplayMode] = useState<'elapsed' | 'remaining'>('elapsed');
-
+  const [theme, setTheme] = useState<Theme>('robotic');
+  const [librarySource, setLibrarySource] = useState<'local' | 'spotify'>('local');
+  
+  // --- Playlist State ---
   const [playlists, setPlaylists] = useState<PlaylistType[]>([]);
   const [activePlaylistId, setActivePlaylistId] = useState<string>('all-tracks');
   const [trackToAddToPlaylist, setTrackToAddToPlaylist] = useState<Track | null>(null);
 
+  // --- EQ State ---
   const [isEqEnabled, setIsEqEnabled] = useState<boolean>(false);
   const [eqSettings, setEqSettings] = useState<number[]>(EQ_PRESETS['Flat']);
   const [showEq, setShowEq] = useState(false);
-  const [eqPosition, setEqPosition] = useState({
-    x: window.innerWidth - 420,
-    y: Math.max(20, window.innerHeight - 450)
-  });
+  const [eqPosition, setEqPosition] = useState({ x: window.innerWidth - 420, y: Math.max(20, window.innerHeight - 450) });
 
+  // --- Gemini AI Analysis State ---
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // --- Metadata & Stats State ---
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {} });
+  const [listeningStats, setListeningStats] = useState<ListeningStats>({ totalPlayTime: 0, playCounts: {}, history: [] });
+  const listeningStatsRef = useRef(listeningStats);
+  useEffect(() => {
+    listeningStatsRef.current = listeningStats;
+  }, [listeningStats]);
+
+  // --- Modals State ---
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  const [theme, setTheme] = useState<Theme>('robotic');
-  // Fix: Replace NodeJS.Timeout with number for browser compatibility.
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // --- Sleep Timer State ---
   const [sleepTimerId, setSleepTimerId] = useState<number | null>(null);
   const [sleepTimerRemaining, setSleepTimerRemaining] = useState<number | null>(null);
   const [isSleepTimerPopoverOpen, setIsSleepTimerPopoverOpen] = useState(false);
-  
+
+  // --- Spotify State ---
+  const [isSpotifySdkReady, setIsSpotifySdkReady] = useState(false);
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
+  const [userSpotifyClientId, setUserSpotifyClientId] = useState('');
+  // Fix: Use 'any' for spotifyPlayer state as type definitions are not available in this environment.
+  const [spotifyPlayer, setSpotifyPlayer] = useState<any | null>(null);
+  const [spotifyDeviceId, setSpotifyDeviceId] = useState<string | null>(null);
+  const [isSpotifyPremium, setIsSpotifyPremium] = useState(false);
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState<any[]>([]);
+  const [spotifyTracks, setSpotifyTracks] = useState<Track[]>([]);
+  const [spotifyUser, setSpotifyUser] = useState<any>(null);
+
+  // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
+  const currentTrackRef = useRef<Track | null>(null);
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('jukebox-theme') as Theme | null;
-    if (savedTheme && THEMES.includes(savedTheme)) {
-        setTheme(savedTheme);
+  // --- Utility Functions ---
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve((reader.result as string).split(',')[1]); reader.onerror = (error) => reject(error); });
+  const spotifyApiRequest = useCallback(async (endpoint: string, method = 'GET', body: any = null) => {
+    if (!spotifyToken) return;
+    const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
+      method,
+      headers: { 'Authorization': `Bearer ${spotifyToken}` },
+      body: body ? JSON.stringify(body) : null
+    });
+    if (res.status === 401) { // Token expired
+        setSpotifyToken(null);
+        setSpotifyUser(null);
+        alert('Spotify session expired. Please connect again.');
+        return null;
     }
-  }, []);
+    if (!res.ok) {
+        console.error(`Spotify API Error on ${endpoint}:`, await res.json());
+        return null;
+    }
+    return res.status === 204 ? true : res.json();
+  }, [spotifyToken]);
 
-  useEffect(() => {
-      document.documentElement.setAttribute('data-theme', theme);
-      localStorage.setItem('jukebox-theme', theme);
-  }, [theme]);
+  const activeSpotifyClientId = useMemo(() => {
+    return userSpotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID;
+  }, [userSpotifyClientId]);
 
-  const handleThemeChange = () => {
-    const currentIndex = THEMES.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % THEMES.length;
-    setTheme(THEMES[nextIndex]);
-  };
-
+  // Fix: Move memoized values before callbacks and effects that use them.
+  // --- Memoized Values ---
   const systemPlaylists = useMemo<PlaylistType[]>(() => {
     const likedUrls = Object.entries(trackMetadata.likes).filter(([, liked]) => liked).map(([url]) => url);
-    
-    const ratedPlaylists = [5, 4, 3, 2, 1].map(rating => {
-        const urls = Object.entries(trackMetadata.ratings)
-            .filter(([, r]) => r === rating)
-            .map(([url]) => url);
-        return {
-            id: `rated-${rating}-stars`,
-            name: `${rating}-Star Rated`,
-            trackUrls: urls,
-            system: true
-        };
-    }).filter(p => p.trackUrls.length > 0);
-
-    return [
-      { id: 'all-tracks', name: 'All Tracks', trackUrls: allTracks.map(t => t.url), system: true },
-      { id: 'liked-songs', name: 'Liked Songs', trackUrls: likedUrls, system: true },
-      ...ratedPlaylists
-    ];
+    const ratedPlaylists = [5, 4, 3, 2, 1].map(r => ({ id: `rated-${r}`, name: `${r}-Star Rated`, trackUrls: Object.entries(trackMetadata.ratings).filter(([, rating]) => rating === r).map(([url]) => url), system: true })).filter(p => p.trackUrls.length > 0);
+    return [{ id: 'all-tracks', name: 'All Tracks', trackUrls: allTracks.map(t => t.url), system: true }, { id: 'liked-songs', name: 'Liked Songs', trackUrls: likedUrls, system: true }, ...ratedPlaylists];
   }, [allTracks, trackMetadata.likes, trackMetadata.ratings]);
 
   const combinedPlaylists = useMemo(() => [...systemPlaylists, ...playlists], [systemPlaylists, playlists]);
 
   const activePlaylistTracks = useMemo<Track[]>(() => {
-    const activePlaylist = combinedPlaylists.find(p => p.id === activePlaylistId);
-    if (!activePlaylist) return [];
-    
-    return allTracks.filter(track => activePlaylist.trackUrls.includes(track.url))
-      .sort((a, b) => { // Maintain playlist order
-        const indexA = activePlaylist.trackUrls.indexOf(a.url);
-        const indexB = activePlaylist.trackUrls.indexOf(b.url);
-        return indexA - indexB;
-      });
-  }, [activePlaylistId, combinedPlaylists, allTracks]);
+    if (librarySource === 'spotify') return spotifyTracks;
+    const activePl = combinedPlaylists.find(p => p.id === activePlaylistId); if (!activePl) return [];
+    return allTracks.filter(t => activePl.trackUrls.includes(t.url)).sort((a, b) => activePl.trackUrls.indexOf(a.url) - activePl.trackUrls.indexOf(b.url));
+  }, [activePlaylistId, combinedPlaylists, allTracks, librarySource, spotifyTracks]);
 
   const displayedTracks = useMemo(() => {
-    if (!searchQuery) {
-      return activePlaylistTracks;
-    }
-    const lowercasedQuery = searchQuery.toLowerCase().trim();
-    if (!lowercasedQuery) {
-        return activePlaylistTracks;
-    }
-    return activePlaylistTracks.filter((track, index) =>
-      track.file.name.toLowerCase().includes(lowercasedQuery) ||
-      (index + 1).toString() === lowercasedQuery
-    );
+    if (!searchQuery) return activePlaylistTracks;
+    const lq = searchQuery.toLowerCase().trim();
+    return activePlaylistTracks.filter(t => t.name.toLowerCase().includes(lq) || t.artists?.join(', ').toLowerCase().includes(lq));
   }, [activePlaylistTracks, searchQuery]);
 
-
+  // Fix: Moved setupAudioContext and other handlers before effects to prevent 'used before declaration' errors.
+  // --- Handlers & Callbacks ---
   const setupAudioContext = useCallback(() => {
     if (!audioRef.current || audioContextRef.current) return;
     try {
@@ -169,398 +172,403 @@ const App: React.FC = () => {
         const source = context.createMediaElementSource(audioRef.current);
         const eqNodes = BAND_FREQUENCIES.map(freq => {
             const filter = context.createBiquadFilter();
-            filter.type = 'peaking';
-            filter.frequency.value = freq;
-            filter.Q.value = 1.2;
-            filter.gain.value = 0;
+            filter.type = 'peaking'; filter.frequency.value = freq; filter.Q.value = 1.2; filter.gain.value = 0;
             return filter;
         });
         let lastNode: AudioNode = source;
-        eqNodes.forEach(node => {
-            lastNode.connect(node);
-            lastNode = node;
-        });
+        eqNodes.forEach(node => { lastNode.connect(node); lastNode = node; });
         lastNode.connect(context.destination);
-        audioContextRef.current = context;
-        sourceNodeRef.current = source;
-        eqNodesRef.current = eqNodes;
-    } catch (error) {
-        console.error("Failed to initialize Web Audio API:", error);
-    }
+        audioContextRef.current = context; sourceNodeRef.current = source; eqNodesRef.current = eqNodes;
+    } catch (error) { console.error("Failed to initialize Web Audio API:", error); }
   }, []);
 
-  useEffect(() => {
-    if (currentTrackIndex !== null && !audioContextRef.current) {
-      setupAudioContext();
+  const handleThemeChange = () => { const i = THEMES.indexOf(theme); setTheme(THEMES[(i + 1) % THEMES.length]); };
+  const handlePlayPause = useCallback(() => {
+      if (!currentTrack) {
+          if(displayedTracks.length > 0) setCurrentTrack(displayedTracks[0]);
+          setIsPlaying(true);
+          return;
+      }
+      if (currentTrack.source === 'spotify' && spotifyPlayer) spotifyPlayer.togglePlay();
+      else if (currentTrack.source === 'local') setIsPlaying(prev => !prev);
+  }, [currentTrack, displayedTracks, spotifyPlayer]);
+
+  const playNext = useCallback(() => {
+    if (!displayedTracks.length) return;
+    if (isShuffle) {
+        let randomIndex;
+        do { randomIndex = Math.floor(Math.random() * displayedTracks.length); }
+        while (displayedTracks.length > 1 && displayedTracks[randomIndex].url === currentTrack?.url);
+        setCurrentTrack(displayedTracks[randomIndex]);
+    } else {
+        const currentIndex = currentTrack ? displayedTracks.findIndex(t => t.url === currentTrack.url) : -1;
+        setCurrentTrack(displayedTracks[(currentIndex + 1) % displayedTracks.length]);
     }
-  }, [currentTrackIndex, setupAudioContext]);
+  }, [displayedTracks, currentTrack, isShuffle]);
 
-  useEffect(() => {
-    if (!audioContextRef.current || eqNodesRef.current.length === 0) return;
-    eqNodesRef.current.forEach((node, index) => {
-        node.gain.value = isEqEnabled ? eqSettings[index] : 0;
-    });
-  }, [isEqEnabled, eqSettings]);
+  const playPrev = useCallback(() => {
+    if (!displayedTracks.length || !currentTrack) return;
+    const currentIndex = displayedTracks.findIndex(t => t.url === currentTrack.url);
+    setCurrentTrack(displayedTracks[(currentIndex - 1 + displayedTracks.length) % displayedTracks.length]);
+  }, [displayedTracks, currentTrack]);
 
-
-  useEffect(() => {
-    const loadData = async () => {
-        const [storedMetadata, storedPlaylists] = await Promise.all([getTrackMetadata(), getAllPlaylists()]);
-        if (storedMetadata) {
-            if (!storedMetadata.analysis) storedMetadata.analysis = {};
-            setTrackMetadata(storedMetadata);
-        }
-        
-        if (storedPlaylists && storedPlaylists.length > 0) {
-            setPlaylists(storedPlaylists);
-        } else {
-            const defaultPlaylists: PlaylistType[] = DEFAULT_PLAYLIST_NAMES.map(name => ({
-                id: uuidv4(),
-                name,
-                trackUrls: [],
-            }));
-            setPlaylists(defaultPlaylists);
-            await savePlaylists(defaultPlaylists);
-        }
-    };
-    loadData();
-
-    return () => {
-      allTracks.forEach(track => URL.revokeObjectURL(track.url));
-      audioContextRef.current?.close();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-  }, [volume]);
-  
-  useEffect(() => {
-    if (!sleepTimerRemaining || sleepTimerRemaining <= 0) {
-        return;
+  const handleTrackSelect = async (track: Track) => {
+    if (track.source === 'spotify') {
+      if (!isSpotifyPremium) { alert("Spotify Premium is required for playback."); return; }
+      if (spotifyDeviceId) {
+        await spotifyApiRequest(`me/player/play?device_id=${spotifyDeviceId}`, 'PUT', { uris: [track.url] });
+        setCurrentTrack(track);
+        setIsPlaying(true);
+      } else { alert("No active Spotify device found. Make sure Spotify is open on one of your devices."); }
+    } else {
+      setLoadingTrackUrl(track.url);
+      setCurrentTrack(track);
+      setIsPlaying(true);
     }
-
-    const intervalId = setInterval(() => {
-        setSleepTimerRemaining(prev => {
-            if (prev === null || prev <= 1) {
-                clearInterval(intervalId);
-                return null;
-            }
-            return prev - 1;
-        });
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, [sleepTimerRemaining]);
-
-  const handleSetSleepTimer = (minutes: number) => {
-    if (sleepTimerId) {
-        clearTimeout(sleepTimerId);
-        setSleepTimerId(null);
-    }
-    setSleepTimerRemaining(null);
-
-    if (minutes <= 0) {
-        return;
-    }
-
-    const seconds = minutes * 60;
-    setSleepTimerRemaining(seconds);
-
-    const newTimerId = setTimeout(() => {
-        setIsPlaying(false);
-        setSleepTimerRemaining(null);
-        setSleepTimerId(null);
-    }, seconds * 1000);
-
-    setSleepTimerId(newTimerId);
   };
 
-  const handleToggleSleepTimerPopover = () => {
-    setIsSleepTimerPopoverOpen(prev => !prev);
-    if (!isSleepTimerPopoverOpen) {
-        setShowEq(false);
+  const handleSpotifyLogin = () => {
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${activeSpotifyClientId}&response_type=token&redirect_uri=${encodeURIComponent(SPOTIFY_REDIRECT_URI)}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}`;
+    window.open(authUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleSaveSpotifyClientId = (clientId: string) => {
+    setUserSpotifyClientId(clientId);
+    localStorage.setItem('spotify-client-id', clientId);
+    alert('Spotify Client ID saved! You may need to reconnect to Spotify for the change to take effect.');
+  };
+
+  const handleSelectSpotifyPlaylist = async (playlistId: string) => {
+    setActivePlaylistId(playlistId);
+    setSpotifyTracks([]);
+    try {
+        const data = await spotifyApiRequest(`playlists/${playlistId}/tracks`);
+        if(data) {
+            const tracks: Track[] = data.items.map(({track}: any) => track && ({
+                id: track.id,
+                url: track.uri,
+                source: 'spotify',
+                name: track.name,
+                artists: track.artists.map((a: any) => a.name),
+                album: track.album.name,
+                albumArtUrl: track.album.images?.[0]?.url,
+                duration: Math.round(track.duration_ms / 1000)
+            })).filter(Boolean);
+            setSpotifyTracks(tracks);
+        } else {
+            alert('Could not load Spotify playlist. Please try again.');
+        }
+    } catch(e) {
+        console.error("Error fetching spotify playlist:", e);
+        alert('An unexpected error occurred while loading the Spotify playlist.');
     }
   };
   
   const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) return;
-
-    setIsImporting(true);
-    allTracks.forEach(track => URL.revokeObjectURL(track.url));
-
+    const files = event.target.files; if (!files) return; setIsImporting(true);
     const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac', '.opus'];
-    
-    const audioFiles: File[] = [...files].filter(file => {
-        if (file.type.startsWith('audio/')) return true;
-        const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-        return AUDIO_EXTENSIONS.includes(extension);
-    });
-
+    const audioFiles: File[] = [...files].filter(f => AUDIO_EXTENSIONS.includes(f.name.slice(f.name.lastIndexOf('.')).toLowerCase()));
     if (audioFiles.length > 0) {
       const newTracks: Track[] = audioFiles.map((file: File) => ({
-        file,
-        url: URL.createObjectURL(file),
-        relativePath: file.webkitRelativePath || file.name,
+        source: 'local', file, url: URL.createObjectURL(file), name: file.name.replace(/\.[^/.]+$/, ""), duration: 0, relativePath: file.webkitRelativePath || file.name,
       }));
       setAllTracks(newTracks);
-      setCurrentTrackIndex(0);
+      setCurrentTrack(newTracks[0]);
       setIsPlaying(true);
       setActivePlaylistId('all-tracks');
-    } else {
-        setAllTracks([]);
-        setCurrentTrackIndex(null);
-        setIsPlaying(false);
-        alert('No supported audio files found in the selected folder.');
-    }
-
-    if (event.target) event.target.value = '';
-    setIsImporting(false);
-  };
-  
-  const selectTrackByIndex = (index: number) => {
-    setLoadingTrackUrl(allTracks[index].url);
-    if (index === currentTrackIndex) {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        if (!isPlaying) setIsPlaying(true);
-      }
-    } else {
-      setCurrentTrackIndex(index);
-      setIsPlaying(true);
-    }
+    } else { alert('No supported audio files found in the selected folder.'); }
+    if (event.target) event.target.value = ''; setIsImporting(false);
   };
 
-  const handleTrackSelect = (track: Track) => {
-    const originalIndex = allTracks.findIndex(t => t.url === track.url);
-    if (originalIndex !== -1) {
-      selectTrackByIndex(originalIndex);
-    }
-  };
-
-  const playNext = useCallback(() => {
-    if (displayedTracks.length === 0) return;
-    let nextTrack: Track;
-    const currentTrackUrl = currentTrackIndex !== null ? allTracks[currentTrackIndex].url : null;
-    
-    if (isShuffle) {
-      if (displayedTracks.length > 1) {
-          let randomIndex;
-          do { randomIndex = Math.floor(Math.random() * displayedTracks.length); }
-          while (displayedTracks[randomIndex].url === currentTrackUrl);
-          nextTrack = displayedTracks[randomIndex];
-      } else { nextTrack = displayedTracks[0]; }
-    } else {
-        const currentIndexInDisplayed = currentTrackUrl ? displayedTracks.findIndex(t => t.url === currentTrackUrl) : -1;
-        const nextIndexInDisplayed = (currentIndexInDisplayed + 1) % displayedTracks.length;
-        nextTrack = displayedTracks[nextIndexInDisplayed];
-    }
-    
-    if (nextTrack) handleTrackSelect(nextTrack);
-  }, [allTracks, displayedTracks, currentTrackIndex, isShuffle]);
-
-  const playPrev = useCallback(() => {
-    if (displayedTracks.length === 0 || currentTrackIndex === null) return;
-    const currentTrackUrl = allTracks[currentTrackIndex].url;
-    const currentIndexInDisplayed = displayedTracks.findIndex(t => t.url === currentTrackUrl);
-    const prevIndexInDisplayed = (currentIndexInDisplayed - 1 + displayedTracks.length) % displayedTracks.length;
-    const prevTrack = displayedTracks[prevIndexInDisplayed];
-    if (prevTrack) handleTrackSelect(prevTrack);
-  }, [allTracks, displayedTracks, currentTrackIndex]);
-  
-  const handlePlayPause = useCallback(() => {
-      if(currentTrackIndex === null && allTracks.length > 0) {
-          setCurrentTrackIndex(0);
-          setIsPlaying(true);
-          return;
-      }
-      if (audioContextRef.current && audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
-      setIsPlaying(prev => !prev);
-  }, [currentTrackIndex, allTracks]);
-  
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      
+  const handleKeyboardShortcuts = useCallback((e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.code) {
         case 'Space': case 'Numpad5': e.preventDefault(); handlePlayPause(); break;
         case 'ArrowRight': case 'Numpad6': e.preventDefault(); playNext(); break;
         case 'ArrowLeft': case 'Numpad4': e.preventDefault(); playPrev(); break;
         case 'ArrowUp': case 'Numpad8': e.preventDefault(); setVolume(v => Math.min(1, v + VOLUME_STEP)); break;
         case 'ArrowDown': case 'Numpad2': e.preventDefault(); setVolume(v => Math.max(0, v - VOLUME_STEP)); break;
-        case 'Numpad7': if (audioRef.current) audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 6); break;
-        case 'Numpad9': if (audioRef.current) audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 6); break;
-        case 'Numpad1': if (audioRef.current) audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 3); break;
-        case 'Numpad3': if (audioRef.current) audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 3); break;
-        case 'Numpad0': setIsShuffle(s => !s); break;
-        case 'NumpadDecimal': setIsRepeat(r => !r); break;
-        default: break;
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePlayPause, playNext, playPrev, duration]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const track = currentTrackIndex !== null ? allTracks[currentTrackIndex] : null;
-    if (!isPlaying || !track) { audio.pause(); return; }
-    const playAudio = async () => {
-      try {
-        if (audioContextRef.current?.state === 'suspended') await audioContextRef.current.resume();
-        await audio.play();
-      } catch (error) { if ((error as DOMException).name !== 'AbortError') console.error("Audio playback error:", error); }
-    };
-    if (audio.src !== track.url) {
-      audio.src = track.url;
-      audio.addEventListener('canplay', () => playAudio(), { once: true });
-      audio.addEventListener('error', () => console.error(`Failed to load audio: ${track.url}`), { once: true });
-    } else { playAudio(); }
-  }, [currentTrackIndex, isPlaying, allTracks]);
-
-  const handleTimeUpdate = () => { if (audioRef.current) { setCurrentTime(audioRef.current.currentTime); if (audioRef.current.duration) setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100); } };
-  const handleLoadedMetadata = () => { if (audioRef.current) setDuration(audioRef.current.duration); };
+  }, [handlePlayPause, playNext, playPrev]);
+  
+  // Player Event Handlers
+  const handleTimeUpdate = () => { if (audioRef.current) { const { currentTime, duration } = audioRef.current; setCurrentTime(currentTime); if(duration) setProgress((currentTime / duration) * 100); } };
+  const handleLoadedMetadata = () => { if (audioRef.current) { setDuration(audioRef.current.duration); setAllTracks(tracks => tracks.map(t => t.url === currentTrack?.url ? {...t, duration: audioRef.current!.duration} : t)); } };
   const handleEnded = () => { if (isRepeat && audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play(); } else { playNext(); } };
-  const handleCanPlayThrough = () => { if (audioRef.current?.src === loadingTrackUrl) setLoadingTrackUrl(null); };
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => { if (audioRef.current && !isNaN(duration) && duration > 0) audioRef.current.currentTime = (e.nativeEvent.offsetX / e.currentTarget.offsetWidth) * duration; };
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => setVolume(parseFloat(e.target.value));
-  const handleVolumeUp = () => setVolume(v => Math.min(1, v + VOLUME_STEP));
-  const handleVolumeDown = () => setVolume(v => Math.max(0, v - VOLUME_STEP));
-  const handleEqEnabledChange = (enabled: boolean) => { if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume(); setIsEqEnabled(enabled); };
-  const handleEqGainChange = (bandIndex: number, gain: number) => setEqSettings(p => { const n = [...p]; n[bandIndex] = gain; return n; });
-  const handleEqPresetChange = (presetName: string) => { if (EQ_PRESETS[presetName]) setEqSettings(EQ_PRESETS[presetName]); };
-  const handleEqPositionChange = (position: { x: number; y: number }) => {
-    const popoverWidth = 384, popoverHeight = 280, headerHeight = 60;
-    const clampedX = Math.max(-(popoverWidth - headerHeight), Math.min(position.x, window.innerWidth - headerHeight));
-    const clampedY = Math.max(0, Math.min(position.y, window.innerHeight - popoverHeight));
-    setEqPosition({ x: clampedX, y: clampedY });
-  };
-  const handleTimeDisplayToggle = () => setTimeDisplayMode(prev => prev === 'elapsed' ? 'remaining' : 'elapsed');
+  const handleCanPlayThrough = () => { if (loadingTrackUrl) setLoadingTrackUrl(null); };
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => { if (!currentTrack) return; const newProgress = e.nativeEvent.offsetX / e.currentTarget.offsetWidth; const newTime = newProgress * duration; if (currentTrack.source === 'local' && audioRef.current) audioRef.current.currentTime = newTime; if (currentTrack.source === 'spotify' && spotifyPlayer) spotifyPlayer.seek(newTime * 1000); };
+
   const handleClearPlaylist = async () => {
+    await clearAllData();
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
     allTracks.forEach(track => URL.revokeObjectURL(track.url));
-    setAllTracks([]); setCurrentTrackIndex(null); setIsPlaying(false); setProgress(0); setDuration(0); setCurrentTime(0); setSearchQuery('');
-    
-    const defaultPlaylists: PlaylistType[] = DEFAULT_PLAYLIST_NAMES.map(name => ({
-        id: uuidv4(),
-        name,
-        trackUrls: [],
-    }));
-    setPlaylists(defaultPlaylists);
-
-    try { 
-        await clearTracks(); 
-        await savePlaylists(defaultPlaylists);
-    } catch (error) { 
-        console.error("Failed to clear jukebox data:", error); 
-    }
+    setAllTracks([]); setCurrentTrack(null); setIsPlaying(false);
+    setProgress(0); setDuration(0); setCurrentTime(0); setSearchQuery('');
     setIsClearConfirmOpen(false);
   };
-
-  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve((reader.result as string).split(',')[1]); reader.onerror = (error) => reject(error); });
-
+  
   const handleAnalyzeTrack = async (forceRegenerate = false) => {
-    const track = currentTrackIndex !== null ? allTracks[currentTrackIndex] : null;
-    if (!track) return;
-    if (!forceRegenerate && trackMetadata.analysis?.[track.url]) { setAnalysisResult(trackMetadata.analysis[track.url]); setIsAnalysisModalOpen(true); return; }
+    if (!currentTrack || currentTrack.source !== 'local' || !currentTrack.file) return;
+    if (!forceRegenerate && trackMetadata.analysis?.[currentTrack.url]) { setAnalysisResult(trackMetadata.analysis[currentTrack.url]); setIsAnalysisModalOpen(true); return; }
     setIsAnalysisModalOpen(true); setIsAnalyzing(true); setAnalysisResult(null);
     try {
       const ai = new GoogleGenAI({ apiKey: API_KEY });
-      const audioData = await fileToBase64(track.file);
-      const audioPart = { inlineData: { mimeType: track.file.type || 'audio/mpeg', data: audioData } };
+      const audioData = await fileToBase64(currentTrack.file);
+      const audioPart = { inlineData: { mimeType: currentTrack.file.type || 'audio/mpeg', data: audioData } };
       const prompt = `Analyze the provided audio file and return a detailed breakdown in JSON format. The JSON object must contain these exact keys: "songStructure", "musicalElements", "lyricalComponents", "productionElements", "creativeTechnicalAspects", and "regenerationPrompt". For each key except "regenerationPrompt", provide a detailed, plain-text analysis. For "regenerationPrompt", provide a single, summarized text prompt, 350 characters or less, that could be used to regenerate a similar song. This prompt must not contain any special formatting characters like hashtags or asterisks.`;
       const response = await ai.models.generateContent({ model: 'gemini-2.5-pro', contents: { parts: [audioPart, { text: prompt }] }, config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { songStructure: { type: Type.STRING }, musicalElements: { type: Type.STRING }, lyricalComponents: { type: Type.STRING }, productionElements: { type: Type.STRING }, creativeTechnicalAspects: { type: Type.STRING }, regenerationPrompt: { type: Type.STRING } }, required: ["songStructure", "musicalElements", "lyricalComponents", "productionElements", "creativeTechnicalAspects", "regenerationPrompt"] } } });
       const newAnalysis: AnalysisResult = JSON.parse(response.text);
       setAnalysisResult(newAnalysis);
-      const newMetadata: TrackMetadata = { ...trackMetadata, analysis: { ...(trackMetadata.analysis ?? {}), [track.url]: newAnalysis } };
-      setTrackMetadata(newMetadata);
-      await saveTrackMetadata(newMetadata);
+      const newMetadata: TrackMetadata = { ...trackMetadata, analysis: { ...(trackMetadata.analysis ?? {}), [currentTrack.url]: newAnalysis } };
+      setTrackMetadata(newMetadata); await saveTrackMetadata(newMetadata);
     } catch (error) { console.error("Error analyzing song with Gemini:", error); setAnalysisResult({ songStructure: "Could not analyze song.", musicalElements: "An error occurred while communicating with the AI.", lyricalComponents: "", productionElements: "", creativeTechnicalAspects: "", regenerationPrompt: "Analysis failed." }); }
     finally { setIsAnalyzing(false); }
   };
 
-  const handleLikeToggle = async (trackUrl: string) => {
-    const newMetadata: TrackMetadata = { ...trackMetadata, likes: { ...trackMetadata.likes, [trackUrl]: !trackMetadata.likes[trackUrl] } };
-    setTrackMetadata(newMetadata);
-    await saveTrackMetadata(newMetadata);
-  };
-  const handleRateTrack = async (trackUrl: string, rating: number) => {
-      const newRating = (trackMetadata.ratings[trackUrl] || 0) === rating ? 0 : rating;
-      const newMetadata: TrackMetadata = { ...trackMetadata, ratings: { ...trackMetadata.ratings, [trackUrl]: newRating } };
-      setTrackMetadata(newMetadata);
-      await saveTrackMetadata(newMetadata);
-  };
-  const handleShareTrack = async (track: Track) => {
-      const trackName = track.file.name.replace(/\.[^/.]+$/, "");
-      if (navigator.share) { try { await navigator.share({ title: 'Check out this track!', text: `I'm listening to "${trackName}" on Robo AI Jukebox.` }); } catch (error) { if ((error as DOMException).name !== 'AbortError') console.error('Share failed:', error); } }
-      else { try { await navigator.clipboard.writeText(`Listening to "${trackName}"`); alert('Track name copied!'); } catch (err) { alert('Could not copy to clipboard.'); } }
-  };
+  const handleLikeToggle = async (trackUrl: string) => { const newMetadata: TrackMetadata = { ...trackMetadata, likes: { ...trackMetadata.likes, [trackUrl]: !trackMetadata.likes[trackUrl] } }; setTrackMetadata(newMetadata); await saveTrackMetadata(newMetadata); };
+  const handleRateTrack = async (trackUrl: string, rating: number) => { const newRating = (trackMetadata.ratings[trackUrl] || 0) === rating ? 0 : rating; const newMetadata: TrackMetadata = { ...trackMetadata, ratings: { ...trackMetadata.ratings, [trackUrl]: newRating } }; setTrackMetadata(newMetadata); await saveTrackMetadata(newMetadata); };
+  const handleShareTrack = async (track: Track) => { try { if (navigator.share) await navigator.share({ title: 'Check out this track!', text: `I'm listening to "${track.name}" on Robo AI Jukebox.` }); else { await navigator.clipboard.writeText(`Listening to "${track.name}"`); alert('Track name copied!'); } } catch (error) { console.error('Share/Copy failed:', error); } };
   const handlePlaylistReorder = async (dragIndex: number, dropIndex: number) => {
-    const activePlaylist = combinedPlaylists.find(p => p.id === activePlaylistId);
-    if (!activePlaylist || activePlaylist.system) return;
-
-    const newOrderedList = [...activePlaylistTracks];
-    const [draggedItem] = newOrderedList.splice(dragIndex, 1);
-    newOrderedList.splice(dropIndex, 0, draggedItem);
-    const newUrlOrder = newOrderedList.map(t => t.url);
-
-    const updatedUserPlaylists = playlists.map(p => {
-      if (p.id === activePlaylistId) {
-        return { ...p, trackUrls: newUrlOrder };
-      }
-      return p;
-    });
-
-    setPlaylists(updatedUserPlaylists);
-    await savePlaylists(updatedUserPlaylists);
+    const activePl = combinedPlaylists.find(p => p.id === activePlaylistId); if (!activePl || activePl.system) return;
+    const newOrderedList = [...activePlaylistTracks]; const [draggedItem] = newOrderedList.splice(dragIndex, 1); newOrderedList.splice(dropIndex, 0, draggedItem); const newUrlOrder = newOrderedList.map(t => t.url);
+    const updatedUserPls = playlists.map(p => p.id === activePlaylistId ? { ...p, trackUrls: newUrlOrder } : p); setPlaylists(updatedUserPls); await savePlaylists(updatedUserPls);
   };
+  const handleCreatePlaylist = async (name: string) => { const newPlaylist: PlaylistType = { id: uuidv4(), name, trackUrls: [] }; const updatedPls = [...playlists, newPlaylist]; setPlaylists(updatedPls); await savePlaylists(updatedPls); setActivePlaylistId(newPlaylist.id); };
+  const handleAddToPlaylist = async (playlistId: string) => { if (!trackToAddToPlaylist) return; const updatedPls = playlists.map(p => (p.id === playlistId && !p.trackUrls.includes(trackToAddToPlaylist.url)) ? { ...p, trackUrls: [...p.trackUrls, trackToAddToPlaylist.url] } : p); setPlaylists(updatedPls); await savePlaylists(updatedPls); setTrackToAddToPlaylist(null); };
+  const handleCreatePlaylistAndAdd = async (playlistName: string) => { if (!trackToAddToPlaylist) return; const newPlaylist: PlaylistType = { id: uuidv4(), name: playlistName, trackUrls: [trackToAddToPlaylist.url] }; const updatedPls = [...playlists, newPlaylist]; setPlaylists(updatedPls); await savePlaylists(updatedPls); setTrackToAddToPlaylist(null); };
+  const handleRemoveTrackFromPlaylist = async (trackUrl: string) => { const activePl = playlists.find(p => p.id === activePlaylistId); if (!activePl || activePl.system) return; const updatedPls = playlists.map(p => p.id === activePlaylistId ? { ...p, trackUrls: p.trackUrls.filter(url => url !== trackUrl) } : p); setPlaylists(updatedPls); await savePlaylists(updatedPls); };
 
-  const handleCreatePlaylist = async (name: string) => {
-    const newPlaylist: PlaylistType = { id: uuidv4(), name, trackUrls: [] };
-    const updatedPlaylists = [...playlists, newPlaylist];
-    setPlaylists(updatedPlaylists);
-    await savePlaylists(updatedPlaylists);
-    setActivePlaylistId(newPlaylist.id);
-  };
-  const handleAddToPlaylist = async (playlistId: string) => {
-    if (!trackToAddToPlaylist) return;
-    const updatedPlaylists = playlists.map(p => {
-        if (p.id === playlistId && !p.trackUrls.includes(trackToAddToPlaylist.url)) {
-            return { ...p, trackUrls: [...p.trackUrls, trackToAddToPlaylist.url] };
+  // --- Effects ---
+  useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
+
+  // Load theme & data on initial mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('jukebox-theme') as Theme | null;
+    if (savedTheme && THEMES.includes(savedTheme)) setTheme(savedTheme);
+
+    const savedClientId = localStorage.getItem('spotify-client-id');
+    if (savedClientId) {
+      setUserSpotifyClientId(savedClientId);
+    }
+
+    const loadData = async () => {
+        const [metadata, playlists, stats] = await Promise.all([getTrackMetadata(), getAllPlaylists(), getStats()]);
+        if (metadata) { if (!metadata.analysis) metadata.analysis = {}; setTrackMetadata(metadata); }
+        if (stats) setListeningStats(stats);
+        
+        if (playlists && playlists.length > 0) {
+            setPlaylists(playlists);
+        } else {
+            const defaultPls: PlaylistType[] = DEFAULT_PLAYLIST_NAMES.map(name => ({ id: uuidv4(), name, trackUrls: [] }));
+            setPlaylists(defaultPls);
+            await savePlaylists(defaultPls);
         }
-        return p;
-    });
-    setPlaylists(updatedPlaylists);
-    await savePlaylists(updatedPlaylists);
-    setTrackToAddToPlaylist(null);
-  };
-  const handleCreatePlaylistAndAdd = async (playlistName: string) => {
-    if (!trackToAddToPlaylist) return;
-    const newPlaylist: PlaylistType = { id: uuidv4(), name: playlistName, trackUrls: [trackToAddToPlaylist.url] };
-    const updatedPlaylists = [...playlists, newPlaylist];
-    setPlaylists(updatedPlaylists);
-    await savePlaylists(updatedPlaylists);
-    setTrackToAddToPlaylist(null);
-  };
-    const handleRemoveTrackFromPlaylist = async (trackUrl: string) => {
-    const activePlaylist = playlists.find(p => p.id === activePlaylistId);
-    if (!activePlaylist || activePlaylist.system) return;
+    };
+    loadData();
 
-    const updatedPlaylists = playlists.map(p => {
-      if (p.id === activePlaylistId) {
-        return { ...p, trackUrls: p.trackUrls.filter(url => url !== trackUrl) };
+    return () => { allTracks.forEach(track => { if (track.source === 'local') URL.revokeObjectURL(track.url) }); audioContextRef.current?.close(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
+
+  // Handle Theme Change
+  useEffect(() => { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('jukebox-theme', theme); }, [theme]);
+
+  // Handle Spotify SDK loading and Auth hash parsing
+  useEffect(() => {
+    (window as any).onSpotifyWebPlaybackSDKReady = () => {
+      setIsSpotifySdkReady(true);
+    };
+    if ((window as any).Spotify) {
+      setIsSpotifySdkReady(true);
+    }
+  
+    const hash = window.location.hash;
+    const token = new URLSearchParams(hash.substring(1)).get('access_token');
+    if (token) {
+        setSpotifyToken(token);
+        window.location.hash = ''; // Clear hash from URL
+    }
+  }, []);
+
+  // Handle Spotify Player Initialization
+  useEffect(() => {
+    if (isSpotifySdkReady && spotifyToken && !spotifyPlayer) {
+      // Fix: Access Spotify Player constructor from the window object as it's loaded via script.
+      const player = new (window as any).Spotify.Player({
+          name: 'Robo AI Jukebox',
+          getOAuthToken: cb => { cb(spotifyToken); },
+          volume: volume
+      });
+  
+      player.addListener('ready', ({ device_id }) => {
+          console.log('Spotify Player Ready with Device ID', device_id);
+          setSpotifyDeviceId(device_id);
+      });
+      player.addListener('not_ready', ({ device_id }) => console.log('Device ID has gone offline', device_id));
+      player.addListener('initialization_error', ({ message }) => {
+          console.error("Spotify Player Init Error:", message);
+      });
+      player.addListener('authentication_error', ({ message }) => {
+          console.error("Spotify Player Auth Error:", message);
+          alert("Spotify authentication failed. Your session may have expired. Please connect again.");
+          setSpotifyToken(null);
+          setSpotifyUser(null);
+      });
+      player.addListener('account_error', ({ message }) => {
+          setIsSpotifyPremium(false);
+          alert(`Spotify Account Error: ${message}. Playback requires a Premium account.`);
+      });
+      player.addListener('player_state_changed', state => {
+          if (!state) return;
+          setIsPlaying(!state.paused);
+          setProgress((state.position / state.duration) * 100);
+          setCurrentTime(state.position / 1000);
+          setDuration(state.duration / 1000);
+          const currentTrackFromState = state.track_window?.current_track;
+          if (currentTrackFromState && currentTrackRef.current?.id !== currentTrackFromState.id) {
+              const newTrack: Track = {
+                  id: currentTrackFromState.id,
+                  url: currentTrackFromState.uri,
+                  source: 'spotify',
+                  name: currentTrackFromState.name,
+                  artists: currentTrackFromState.artists.map((a: any) => a.name),
+                  album: currentTrackFromState.album.name,
+                  albumArtUrl: currentTrackFromState.album.images?.[0]?.url,
+                  duration: Math.round(currentTrackFromState.duration_ms / 1000)
+              };
+              setCurrentTrack(newTrack);
+          }
+      });
+  
+      player.connect().then(success => {
+          if (success) {
+              console.log('The Spotify player has connected successfully!');
+              setSpotifyPlayer(player);
+          }
+      });
+  
+      return () => {
+          console.log("Disconnecting Spotify Player");
+          player.disconnect();
+          setSpotifyPlayer(null);
+      };
+    }
+  }, [isSpotifySdkReady, spotifyToken, volume, spotifyPlayer]);
+
+  // Fetch Spotify user data and playlists when token is available
+  useEffect(() => {
+    if (spotifyToken) {
+        const fetchUserData = async () => {
+            try {
+              const user = await spotifyApiRequest('me');
+              if (user) {
+                  setSpotifyUser(user);
+                  setIsSpotifyPremium(user.product === 'premium');
+              } else {
+                  throw new Error("Failed to fetch user profile.");
+              }
+
+              const playlistsData = await spotifyApiRequest('me/playlists?limit=50');
+              if(playlistsData) {
+                  setSpotifyPlaylists(playlistsData.items);
+              } else {
+                  throw new Error("Failed to fetch user playlists.");
+              }
+            } catch(e) {
+                console.error("Error fetching user data from Spotify:", e);
+                alert("Could not fetch your Spotify data. Your session might have expired. Please try connecting again.");
+                setSpotifyToken(null);
+                setSpotifyUser(null);
+            }
+        };
+        fetchUserData();
+    }
+  }, [spotifyToken, spotifyApiRequest]);
+
+  // Handle Player Volume
+  useEffect(() => {
+    if (audioRef.current && currentTrack?.source === 'local') audioRef.current.volume = volume;
+    if (spotifyPlayer) spotifyPlayer.setVolume(volume);
+  }, [volume, spotifyPlayer, currentTrack]);
+
+  // Handle Play/Pause
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (currentTrack?.source !== 'local') { audio.pause(); return; }
+    
+    const playAudio = async () => {
+        try {
+            if (audioContextRef.current?.state === 'suspended') await audioContextRef.current.resume();
+            await audio.play();
+        } catch (error) { if ((error as DOMException).name !== 'AbortError') console.error("Audio playback error:", error); }
+    };
+
+    if (isPlaying && currentTrack) {
+        if (audio.src !== currentTrack.url) {
+            // A new track is being played. Update play count and history.
+            setListeningStats(stats => {
+                const newPlayCounts = { ...stats.playCounts, [currentTrack.url]: (stats.playCounts[currentTrack.url] || 0) + 1 };
+                // Add to history, remove duplicates, and cap at 50
+                const newHistory = [currentTrack.url, ...stats.history.filter(h => h !== currentTrack.url)].slice(0, 50);
+                return { ...stats, playCounts: newPlayCounts, history: newHistory };
+            });
+
+            audio.src = currentTrack.url;
+            audio.load();
+            audio.addEventListener('canplay', playAudio, { once: true });
+        } else { playAudio(); }
+    } else { audio.pause(); }
+  }, [currentTrack, isPlaying]);
+
+  // Stat tracking effect
+  useEffect(() => {
+    let playTimeInterval: number | null = null;
+    let saveStatsInterval: number | null = null;
+    
+    const persistStats = () => {
+      if (listeningStatsRef.current.totalPlayTime > 0 || Object.keys(listeningStatsRef.current.playCounts).length > 0) {
+        saveStats(listeningStatsRef.current);
       }
-      return p;
-    });
+    };
+    
+    if (isPlaying && currentTrack?.source === 'local') {
+      playTimeInterval = window.setInterval(() => {
+        setListeningStats(stats => ({
+          ...stats,
+          totalPlayTime: stats.totalPlayTime + 1,
+        }));
+      }, 1000);
+      
+      saveStatsInterval = window.setInterval(persistStats, 15000);
+    }
+    
+    return () => {
+      if (playTimeInterval) window.clearInterval(playTimeInterval);
+      if (saveStatsInterval) window.clearInterval(saveStatsInterval);
+      persistStats();
+    };
+  }, [isPlaying, currentTrack]);
 
-    setPlaylists(updatedPlaylists);
-    await savePlaylists(updatedPlaylists);
-  };
+  // Handle Sleep Timer Countdown
+  useEffect(() => {
+    if (!sleepTimerRemaining || sleepTimerRemaining <= 0) return;
+    const intervalId = window.setInterval(() => setSleepTimerRemaining(p => (p === null || p <= 1) ? null : p - 1), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [sleepTimerRemaining]);
 
-  const currentTrack = currentTrackIndex !== null ? allTracks[currentTrackIndex] : null;
+  // Setup/Teardown EQ
+  useEffect(() => {
+    if (currentTrack && !audioContextRef.current) setupAudioContext();
+  }, [currentTrack, setupAudioContext]);
+
+  useEffect(() => {
+    if (!audioContextRef.current || eqNodesRef.current.length === 0) return;
+    eqNodesRef.current.forEach((node, index) => { node.gain.value = isEqEnabled ? eqSettings[index] : 0; });
+  }, [isEqEnabled, eqSettings]);
+
+  useEffect(() => { window.addEventListener('keydown', handleKeyboardShortcuts); return () => window.removeEventListener('keydown', handleKeyboardShortcuts); }, [handleKeyboardShortcuts]);
+
   const activePlaylist = combinedPlaylists.find(p => p.id === activePlaylistId);
 
   return (
@@ -568,6 +576,23 @@ const App: React.FC = () => {
       <header className="p-4 flex items-center justify-between border-b border-[var(--border-primary)] shadow-md flex-shrink-0">
         <h1 className="text-2xl md:text-3xl font-bold tracking-wider text-[var(--accent-primary)] uppercase">Robo AI - Jukebox</h1>
         <div className="flex items-center space-x-2">
+            {spotifyUser ? (
+                <div className="flex items-center space-x-2 bg-[var(--bg-tertiary)]/50 px-3 py-1.5 rounded-full">
+                    <span className="text-sm font-semibold">{spotifyUser.display_name}</span>
+                </div>
+            ) : (
+                <button 
+                  onClick={handleSpotifyLogin} 
+                  title="Connect to Spotify"
+                  className="flex items-center space-x-2 bg-[#1DB954] hover:bg-[#1ED760] text-white font-bold py-2 px-4 rounded-full transition-colors"
+                >
+                    <SpotifyIcon className="w-5 h-5"/>
+                    <span>Connect Spotify</span>
+                </button>
+            )}
+            <button onClick={() => setIsProfileModalOpen(true)} title="Your Profile" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
+                <UserIcon className="w-6 h-6" />
+            </button>
             <button onClick={handleThemeChange} title="Switch Theme" className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-full hover:bg-[var(--bg-tertiary)]/50">
                 <ThemeIcon className="w-6 h-6" />
             </button>
@@ -586,12 +611,17 @@ const App: React.FC = () => {
             activePlaylistId={activePlaylistId}
             onSelectPlaylist={setActivePlaylistId}
             onCreatePlaylist={handleCreatePlaylist}
+            librarySource={librarySource}
+            onLibrarySourceChange={setLibrarySource}
+            isSpotifyConnected={!!spotifyToken}
+            spotifyPlaylists={spotifyPlaylists}
+            onSelectSpotifyPlaylist={handleSelectSpotifyPlaylist}
         />
         <main className="flex-grow overflow-hidden flex flex-col">
             <Playlist
             tracks={displayedTracks}
             totalTrackCount={allTracks.length}
-            currentTrackUrl={currentTrack?.url ?? null}
+            currentTrack={currentTrack}
             loadingTrackUrl={loadingTrackUrl}
             onTrackSelect={handleTrackSelect}
             onFolderSelectClick={() => fileInputRef.current?.click()}
@@ -607,6 +637,7 @@ const App: React.FC = () => {
             onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist}
             isUserPlaylist={activePlaylist ? !activePlaylist.system : false}
             playlists={playlists}
+            librarySource={librarySource}
             />
         </main>
       </div>
@@ -624,23 +655,25 @@ const App: React.FC = () => {
         onPlayPause={handlePlayPause} onNext={playNext} onPrev={playPrev}
         onShuffleToggle={() => setIsShuffle(!isShuffle)} onRepeatToggle={() => setIsRepeat(!isRepeat)}
         onSeek={handleSeek} onAddSongsClick={() => fileInputRef.current?.click()}
-        onVolumeChange={handleVolumeChange}
-        onVolumeUp={handleVolumeUp}
-        onVolumeDown={handleVolumeDown}
-        onEqToggle={() => {
-          setShowEq(!showEq);
-          if (!showEq) {
-            setIsSleepTimerPopoverOpen(false);
-          }
-        }}
-        onEqEnabledChange={handleEqEnabledChange}
-        onEqGainChange={handleEqGainChange}
-        onEqPresetChange={handleEqPresetChange}
+        onVolumeChange={(e) => setVolume(parseFloat(e.target.value))}
+        onVolumeUp={() => setVolume(v => Math.min(1, v + 0.1))}
+        onVolumeDown={() => setVolume(v => Math.max(0, v - 0.1))}
+        onEqToggle={() => setShowEq(!showEq)}
+        onEqEnabledChange={(e) => { if(audioContextRef.current?.state === 'suspended') audioContextRef.current.resume(); setIsEqEnabled(e); }}
+        onEqGainChange={(band, gain) => setEqSettings(p => { const n = [...p]; n[band] = gain; return n; })}
+        onEqPresetChange={(p) => setEqSettings(EQ_PRESETS[p])}
         onAnalyze={() => handleAnalyzeTrack()}
-        onEqPositionChange={handleEqPositionChange}
-        onTimeDisplayToggle={handleTimeDisplayToggle}
-        onToggleSleepTimerPopover={handleToggleSleepTimerPopover}
-        onSetSleepTimer={handleSetSleepTimer}
+        onEqPositionChange={setEqPosition}
+        onTimeDisplayToggle={() => setTimeDisplayMode(p => p === 'elapsed' ? 'remaining' : 'elapsed')}
+        onToggleSleepTimerPopover={() => setIsSleepTimerPopoverOpen(p => !p)}
+        onSetSleepTimer={(mins) => {
+          if (sleepTimerId) window.clearTimeout(sleepTimerId);
+          if (mins <= 0) { setSleepTimerId(null); setSleepTimerRemaining(null); return; }
+          const seconds = mins * 60;
+          setSleepTimerRemaining(seconds);
+          const newTimerId = window.setTimeout(() => { setIsPlaying(false); setSleepTimerId(null); setSleepTimerRemaining(null); }, seconds * 1000);
+          setSleepTimerId(newTimerId);
+        }}
       />
 
       <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} onCanPlayThrough={handleCanPlayThrough} crossOrigin="anonymous" />
@@ -648,10 +681,19 @@ const App: React.FC = () => {
       <ConfirmationModal isOpen={isClearConfirmOpen} onClose={() => setIsClearConfirmOpen(false)} onConfirm={handleClearPlaylist} title="Clear Entire Jukebox?">
         <p className="text-sm text-[var(--text-secondary)]">Are you sure you want to permanently delete all tracks and playlists? This action cannot be undone.</p>
       </ConfirmationModal>
-      <AnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} analysis={analysisResult} isLoading={isAnalyzing} trackName={currentTrack?.file.name ?? null} onRegenerate={() => handleAnalyzeTrack(true)} />
-      <AddToPlaylistModal isOpen={!!trackToAddToPlaylist} onClose={() => setTrackToAddToPlaylist(null)} playlists={playlists} onSelectPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylistAndAdd} trackName={trackToAddToPlaylist?.file.name ?? null} />
+      <AnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} analysis={analysisResult} isLoading={isAnalyzing} trackName={currentTrack?.name ?? null} onRegenerate={() => handleAnalyzeTrack(true)} />
+      <AddToQueueModal isOpen={!!trackToAddToPlaylist} onClose={() => setTrackToAddToPlaylist(null)} playlists={playlists} onSelectPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylistAndAdd} trackName={trackToAddToPlaylist?.name ?? null} />
       <ShortcutsModal isOpen={isShortcutsModalOpen} onClose={() => setIsShortcutsModalOpen(false)} />
       <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+        stats={listeningStats} 
+        playlist={allTracks} 
+        onResetStats={() => resetStats().then(() => setListeningStats({ totalPlayTime: 0, playCounts: {}, history: [] }))}
+        userSpotifyClientId={userSpotifyClientId}
+        onSaveSpotifyClientId={handleSaveSpotifyClientId}
+      />
     </div>
   );
 };

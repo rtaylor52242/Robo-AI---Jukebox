@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { CloseIcon } from './Icons';
 
@@ -33,7 +34,7 @@ const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
         <header className="p-4 border-b border-[var(--border-primary)] flex justify-between items-center flex-shrink-0">
           <h2 className="text-xl font-bold text-[var(--accent-primary)]">Keyboard Shortcuts</h2>
           <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition rounded-full p-1 hover:bg-[var(--bg-tertiary)]">
-            <CloseIcon />
+            <CloseIcon className="w-6 h-6" />
           </button>
         </header>
         <div className="p-6 overflow-y-auto max-h-[70vh] space-y-6">

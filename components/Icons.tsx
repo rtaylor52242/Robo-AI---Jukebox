@@ -178,3 +178,15 @@ export const SleepTimerIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) =
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
     </svg>
 );
+
+export const SpotifyIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.146 14.282c-.2.327-.6.422-.926.222-2.724-1.668-6.13-1.932-10.224-1.063-.37.075-.68-.16-.755-.53s.16-.68.53-.755c4.49- .942 8.28- .633 11.31 1.22.326.2.422.6.222.926zm.543-2.67c-.24.39-.72.52-1.11.27-2.98-1.83-7.5-2.33-11.64-1.27-.45.12-.9-.18-.9-.63s.18-.9.63-.9c4.62-1.17 9.57-.6 12.93 1.5.39.24.52.72.28 1.11zm.108-2.79c-3.5-2.14-9.33-2.33-13.56-1.29-.53.13-.9-.28-.9-.78s.28-.9.78-.9c4.71-1.17 11.12- .94 15.1 1.5.48.29.63.87.34 1.35-.29.48-.87.63-1.35.34z" />
+  </svg>
+);
+
+export const UserIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+);
