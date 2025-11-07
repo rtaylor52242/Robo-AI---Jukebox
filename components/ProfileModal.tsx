@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { ListeningStats, Track } from '../types';
-import { CloseIcon, TrashIcon } from './Icons';
+import { CloseIcon, TrashIcon, CopyIcon } from './Icons';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -30,10 +30,17 @@ const formatTime = (totalSeconds: number): string => {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, playlist, onResetStats, userSpotifyClientId, onSaveSpotifyClientId }) => {
   const [clientIdInput, setClientIdInput] = useState(userSpotifyClientId);
+  const [copyButtonText, setCopyButtonText] = useState('Copy');
 
   useEffect(() => {
     setClientIdInput(userSpotifyClientId);
   }, [userSpotifyClientId]);
+  
+  useEffect(() => {
+    if (isOpen) {
+      setCopyButtonText('Copy');
+    }
+  }, [isOpen]);
 
   const getTrackName = useCallback((url: string) => {
     const track = playlist.find(t => t.url === url);
@@ -62,6 +69,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, pla
   }, [stats.history, getTrackName]);
   
   if (!isOpen) return null;
+
+  const handleCopyRedirectURI = () => {
+    navigator.clipboard.writeText(window.location.origin).then(() => {
+      setCopyButtonText('Copied!');
+      setTimeout(() => setCopyButtonText('Copy'), 2000);
+    }).catch(err => {
+      console.error('Failed to copy redirect URI:', err);
+      setCopyButtonText('Error');
+      setTimeout(() => setCopyButtonText('Copy'), 2000);
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in-up" onClick={onClose}>
@@ -132,8 +150,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, pla
                 </button>
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-2 leading-relaxed">
-                If you encounter connection errors, you can provide your own Client ID. In your Spotify Developer Dashboard, ensure the Redirect URI is set to exactly: <code className="bg-[var(--bg-secondary)] p-1 rounded text-[var(--text-primary)]">{`${window.location.origin}/`}</code>
+                If you encounter connection errors, you can provide your own Client ID. In your Spotify Developer Dashboard, ensure the Redirect URI is set to exactly:
             </p>
+            <div className="mt-2 flex items-center space-x-2 bg-[var(--bg-secondary)] p-2 rounded-lg border border-[var(--border-primary)]">
+                <code className="text-[var(--text-primary)] text-sm flex-grow">{window.location.origin}</code>
+                <button 
+                    onClick={handleCopyRedirectURI}
+                    className="flex items-center space-x-1.5 text-xs bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--text-primary)] font-semibold py-1 px-2.5 rounded-md transition-colors"
+                >
+                    <CopyIcon className="w-4 h-4" />
+                    <span>{copyButtonText}</span>
+                </button>
+            </div>
           </div>
 
         </div>

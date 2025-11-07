@@ -30,7 +30,7 @@ export const EQ_PRESETS: { [name: string]: number[] } = {
 const BAND_FREQUENCIES = [60, 230, 910, 3600, 8000, 14000];
 const API_KEY = process.env.API_KEY;
 const DEFAULT_SPOTIFY_CLIENT_ID = '5645471049f840c4b6f9a3f688bf8795';
-const SPOTIFY_REDIRECT_URI = `${window.location.origin}/`;
+const SPOTIFY_REDIRECT_URI = window.location.origin;
 const SPOTIFY_SCOPES = 'streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative';
 
 const VOLUME_STEP = 0.1;
