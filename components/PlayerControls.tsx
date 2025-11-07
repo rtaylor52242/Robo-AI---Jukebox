@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import type { Track } from '../types';
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon } from './Icons';
@@ -22,10 +20,11 @@ interface PlayerControlsProps {
   showEq: boolean;
   isEqEnabled: boolean;
   eqSettings: number[];
-  eqPosition: { x: number; y: number };
   timeDisplayMode: 'elapsed' | 'remaining';
   isSleepTimerPopoverOpen: boolean;
   sleepTimerRemaining: number | null;
+  allPresets: { [name: string]: number[] };
+  userPresets: { [name: string]: number[] };
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -41,10 +40,11 @@ interface PlayerControlsProps {
   onEqGainChange: (bandIndex: number, gain: number) => void;
   onEqPresetChange: (presetName: string) => void;
   onAnalyze: () => void;
-  onEqPositionChange: (position: { x: number; y: number }) => void;
   onTimeDisplayToggle: () => void;
   onToggleSleepTimerPopover: () => void;
   onSetSleepTimer: (minutes: number) => void;
+  onSaveEqPreset: (name: string) => void;
+  onDeleteEqPreset: (name: string) => void;
 }
 
 const formatTime = (timeInSeconds: number): string => {
@@ -70,10 +70,11 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   showEq,
   isEqEnabled,
   eqSettings,
-  eqPosition,
   timeDisplayMode,
   isSleepTimerPopoverOpen,
   sleepTimerRemaining,
+  allPresets,
+  userPresets,
   onPlayPause,
   onNext,
   onPrev,
@@ -89,17 +90,18 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onEqGainChange,
   onEqPresetChange,
   onAnalyze,
-  onEqPositionChange,
   onTimeDisplayToggle,
   onToggleSleepTimerPopover,
   onSetSleepTimer,
+  onSaveEqPreset,
+  onDeleteEqPreset,
 }) => {
   const trackName = currentTrack?.name || "No track selected";
   const trackSource = currentTrack?.source ?? 'local';
 
   return (
     <footer className="bg-[var(--bg-secondary)]/50 backdrop-blur-lg border-t border-[var(--border-primary)] p-4 shadow-2xl">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto relative">
         <div className="flex items-center justify-between mb-2">
             <div className="flex items-center min-w-0 w-1/3">
               {currentTrack?.source === 'spotify' && currentTrack.albumArtUrl && (
@@ -201,18 +203,6 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                     <VolumeUpIcon className="w-6 h-6" />
                 </button>
 
-                {showEq && (
-                  <EqPopover
-                    isEqEnabled={isEqEnabled}
-                    eqSettings={eqSettings}
-                    position={eqPosition}
-                    onEnabledChange={onEqEnabledChange}
-                    onGainChange={onEqGainChange}
-                    onPresetChange={onEqPresetChange}
-                    onClose={onEqToggle}
-                    onPositionChange={onEqPositionChange}
-                  />
-                )}
                 {isSleepTimerPopoverOpen && (
                     <SleepTimerPopover
                         remainingTime={sleepTimerRemaining}
@@ -222,6 +212,21 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                 )}
             </div>
         </div>
+
+        {showEq && (
+          <EqPopover
+            isEqEnabled={isEqEnabled}
+            eqSettings={eqSettings}
+            onEnabledChange={onEqEnabledChange}
+            onGainChange={onEqGainChange}
+            onPresetChange={onEqPresetChange}
+            onClose={onEqToggle}
+            presets={allPresets}
+            userPresets={userPresets}
+            onSavePreset={onSaveEqPreset}
+            onDeletePreset={onDeleteEqPreset}
+          />
+        )}
       </div>
     </footer>
   );

@@ -1,17 +1,18 @@
-
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { EQ_PRESETS } from '../App';
-import { CloseIcon } from './Icons';
+import { CloseIcon, TrashIcon } from './Icons';
 
 interface EqPopoverProps {
     isEqEnabled: boolean;
     eqSettings: number[];
-    position: { x: number; y: number };
     onEnabledChange: (enabled: boolean) => void;
     onGainChange: (bandIndex: number, gain: number) => void;
     onPresetChange: (presetName: string) => void;
     onClose: () => void;
-    onPositionChange: (position: { x: number; y: number }) => void;
+    presets: { [name: string]: number[] };
+    userPresets: { [name: string]: number[] };
+    onSavePreset: (name: string) => void;
+    onDeletePreset: (name: string) => void;
 }
 
 const BAND_LABELS = ['60Hz', '230Hz', '910Hz', '3.6KHz', '8KHz', '14KHz'];
@@ -19,66 +20,65 @@ const BAND_LABELS = ['60Hz', '230Hz', '910Hz', '3.6KHz', '8KHz', '14KHz'];
 const EqPopover: React.FC<EqPopoverProps> = ({ 
     isEqEnabled, 
     eqSettings, 
-    position,
     onEnabledChange, 
     onGainChange, 
     onPresetChange,
     onClose,
-    onPositionChange
+    presets,
+    userPresets,
+    onSavePreset,
+    onDeletePreset
 }) => {
-    const popoverRef = useRef<HTMLDivElement>(null);
-    const isDraggingRef = useRef(false);
-    const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const [isSaving, setIsSaving] = useState(false);
+    const [newPresetName, setNewPresetName] = useState('');
+    const [selectedPreset, setSelectedPreset] = useState('');
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (!popoverRef.current) return;
-        isDraggingRef.current = true;
-        const popoverRect = popoverRef.current.getBoundingClientRect();
-        dragOffsetRef.current = {
-            x: e.clientX - popoverRect.left,
-            y: e.clientY - popoverRect.top
-        };
-        e.preventDefault();
-    };
-    
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDraggingRef.current) return;
-            onPositionChange({
-                x: e.clientX - dragOffsetRef.current.x,
-                y: e.clientY - dragOffsetRef.current.y
-            });
-        };
-
-        const handleMouseUp = () => {
-            isDraggingRef.current = false;
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [onPositionChange]);
-
+        const matchingPreset = Object.entries(presets).find(([, values]) => 
+            // FIX: Cast `values` to `number[]` to resolve TypeScript inference issue where it was treated as `unknown`.
+            (values as number[]).every((v, i) => v === eqSettings[i])
+        );
+        setSelectedPreset(matchingPreset ? matchingPreset[0] : '');
+    }, [eqSettings, presets]);
 
     const handleReset = () => {
         onPresetChange('Flat');
     };
 
+    const handleSaveClick = () => {
+        if (newPresetName.trim()) {
+            onSavePreset(newPresetName.trim());
+            setIsSaving(false);
+            setNewPresetName('');
+        }
+    };
+    
+    const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const name = e.target.value;
+        if (name) {
+            onPresetChange(name);
+        }
+        setSelectedPreset(name);
+    };
+    
+    const handleDeleteClick = () => {
+        if (selectedPreset && userPresets[selectedPreset] && window.confirm(`Are you sure you want to delete the preset "${selectedPreset}"?`)) {
+            onDeletePreset(selectedPreset);
+            setSelectedPreset(''); // Reset selection
+        }
+    };
+
+    const isUserPresetSelected = selectedPreset in userPresets;
+
     return (
         <div 
             id="eq-popover" 
-            ref={popoverRef}
-            className="fixed bg-[var(--bg-popover)] backdrop-blur-md border border-[var(--border-primary)] rounded-lg shadow-2xl p-4 w-96 z-20"
-            style={{ top: `${position.y}px`, left: `${position.x}px` }}
+            className="absolute bottom-full left-0 mb-3 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg shadow-2xl p-4 w-[41rem] z-20 animate-fade-in-up"
+            style={{ animationDuration: '0.2s' }}
             onClick={(e) => e.stopPropagation()}
         >
             <div 
-                className="flex justify-between items-center mb-4 cursor-move"
-                onMouseDown={handleMouseDown}
+                className="flex justify-between items-center mb-4"
             >
                 <h3 className="font-bold text-[var(--accent-primary)]">Equalizer</h3>
                 <div className="flex items-center space-x-4">
@@ -97,25 +97,70 @@ const EqPopover: React.FC<EqPopoverProps> = ({
                 </div>
             </div>
 
-            <div className="flex justify-between items-center mb-4">
-                <select 
-                    onChange={(e) => onPresetChange(e.target.value)} 
-                    className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-md px-2 py-1 text-sm w-full focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none"
-                    disabled={!isEqEnabled}
-                >
-                    <option value="">Select Preset</option>
-                    {Object.keys(EQ_PRESETS).map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
-                <button 
-                    onClick={handleReset} 
-                    className="ml-2 bg-[var(--bg-tertiary)]/70 hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-semibold py-1 px-3 rounded-md text-sm"
-                    disabled={!isEqEnabled}
-                >
-                    Reset
-                </button>
+            <div className="flex flex-col space-y-3 mb-4">
+                <div className="flex justify-between items-center space-x-2">
+                    <select 
+                        value={selectedPreset}
+                        onChange={handlePresetChange} 
+                        className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-md px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none"
+                        disabled={!isEqEnabled}
+                    >
+                        <option value="">{selectedPreset ? 'Custom' : 'Select Preset'}</option>
+                        <optgroup label="Default Presets">
+                            {Object.keys(EQ_PRESETS).map(name => <option key={name} value={name}>{name}</option>)}
+                        </optgroup>
+                        {Object.keys(userPresets).length > 0 && (
+                            <optgroup label="Your Presets">
+                                {Object.keys(userPresets).map(name => <option key={name} value={name}>{name}</option>)}
+                            </optgroup>
+                        )}
+                    </select>
+                    {isUserPresetSelected && (
+                        <button 
+                            onClick={handleDeleteClick} 
+                            className="p-2 bg-[var(--danger-secondary)]/80 hover:bg-[var(--danger-secondary)] text-white rounded-md transition-colors"
+                            title={`Delete preset "${selectedPreset}"`}
+                            disabled={!isEqEnabled}
+                        >
+                           <TrashIcon className="w-4 h-4" />
+                        </button>
+                    )}
+                    <button 
+                        onClick={handleReset} 
+                        className="bg-[var(--bg-tertiary)]/70 hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-semibold py-1.5 px-3 rounded-md text-sm"
+                        disabled={!isEqEnabled}
+                    >
+                        Reset
+                    </button>
+                </div>
+
+                {isSaving ? (
+                     <div className="flex items-center space-x-2">
+                         <input
+                             type="text"
+                             value={newPresetName}
+                             onChange={(e) => setNewPresetName(e.target.value)}
+                             placeholder="Preset name..."
+                             className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md py-1.5 px-3 text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent-primary-hover)] focus:outline-none"
+                             autoFocus
+                             onKeyDown={(e) => e.key === 'Enter' && handleSaveClick()}
+                         />
+                         <button onClick={handleSaveClick} className="bg-[var(--accent-primary-hover)] hover:bg-[var(--accent-primary)] text-[var(--bg-primary)] font-bold py-1.5 px-3 text-sm rounded-md transition">Save</button>
+                         <button onClick={() => setIsSaving(false)} className="bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--text-secondary)] font-semibold py-1.5 px-3 text-sm rounded-md transition">Cancel</button>
+                     </div>
+                ) : (
+                    <button
+                        onClick={() => setIsSaving(true)}
+                        className="w-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/70 text-[var(--accent-primary)] font-semibold py-1.5 px-3 rounded-md text-sm transition-colors"
+                        disabled={!isEqEnabled}
+                    >
+                        Save Current Settings as Preset
+                    </button>
+                )}
             </div>
 
-            <div className="flex justify-between items-end h-32 pt-4 px-2">
+
+            <div className="flex justify-between items-end h-80 pt-4 px-2 pb-32">
                 {eqSettings.map((gain, index) => (
                     <div key={index} className="flex flex-col items-center">
                         <input

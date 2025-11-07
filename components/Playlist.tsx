@@ -51,6 +51,7 @@ const Playlist: React.FC<PlaylistProps> = ({
   const activeItemRef = useRef<HTMLLIElement>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const prevSearchQueryRef = useRef(searchQuery);
 
   useEffect(() => {
     if (activeItemRef.current) {
@@ -60,6 +61,18 @@ const Playlist: React.FC<PlaylistProps> = ({
       });
     }
   }, [currentTrack]);
+
+  useEffect(() => {
+    // When search is cleared, scroll to the currently playing track.
+    if (prevSearchQueryRef.current && searchQuery === '' && activeItemRef.current) {
+        activeItemRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+        });
+    }
+    prevSearchQueryRef.current = searchQuery;
+  }, [searchQuery]);
+
 
   const handleDrop = (dropIndex: number) => {
     if (draggedIndex !== null && draggedIndex !== dropIndex) {

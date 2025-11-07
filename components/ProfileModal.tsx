@@ -12,6 +12,7 @@ interface ProfileModalProps {
   onResetStats: () => void;
   userSpotifyClientId: string;
   onSaveSpotifyClientId: (clientId: string) => void;
+  onTrackSelect: (trackUrl: string) => void;
 }
 
 const formatTime = (totalSeconds: number): string => {
@@ -28,7 +29,7 @@ const formatTime = (totalSeconds: number): string => {
     return result || '0 minutes';
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, playlist, onResetStats, userSpotifyClientId, onSaveSpotifyClientId }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, playlist, onResetStats, userSpotifyClientId, onSaveSpotifyClientId, onTrackSelect }) => {
   const [clientIdInput, setClientIdInput] = useState(userSpotifyClientId);
   const [copyButtonText, setCopyButtonText] = useState('Copy');
 
@@ -103,9 +104,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, pla
               {topTracks.length > 0 ? (
                 <ul className="space-y-2">
                   {topTracks.map((track, index) => (
-                    <li key={track.url} className="flex items-center justify-between bg-[var(--bg-secondary)]/50 p-2 rounded-md">
-                      <span className="truncate pr-4">{index + 1}. {track.name}</span>
-                      <span className="text-xs bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] px-2 py-0.5 rounded-full flex-shrink-0">{track.count} plays</span>
+                    <li key={track.url}>
+                        <button
+                            onClick={() => onTrackSelect(track.url)}
+                            className="w-full flex items-center justify-between bg-[var(--bg-secondary)]/50 p-2 rounded-md text-left hover:bg-[var(--accent-primary)]/20 transition-colors"
+                        >
+                            <span className="truncate pr-4 text-[var(--text-secondary)]">{index + 1}. {track.name}</span>
+                            <span className="text-xs bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] px-2 py-0.5 rounded-full flex-shrink-0">{track.count} plays</span>
+                        </button>
                     </li>
                   ))}
                 </ul>
@@ -119,7 +125,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, stats, pla
               {recentHistory.length > 0 ? (
                 <ul className="space-y-2">
                   {recentHistory.map((track, index) => (
-                    <li key={`${track.url}-${index}`} className="bg-[var(--bg-secondary)]/50 p-2 rounded-md truncate">{track.name}</li>
+                     <li key={`${track.url}-${index}`}>
+                        <button
+                            onClick={() => onTrackSelect(track.url)}
+                            className="w-full text-left bg-[var(--bg-secondary)]/50 p-2 rounded-md truncate hover:bg-[var(--accent-primary)]/20 transition-colors text-[var(--text-secondary)]"
+                        >
+                            {track.name}
+                        </button>
+                    </li>
                   ))}
                 </ul>
               ) : (

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,7 +11,7 @@ import AddToQueueModal from './components/AddToQueueModal';
 import ShortcutsModal from './components/ShortcutsModal';
 import HelpModal from './components/HelpModal';
 import ProfileModal from './components/ProfileModal';
-import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats } from './db';
+import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats, getUserEqPresets, saveUserEqPresets } from './db';
 import { ShortcutsIcon, HelpIcon, ThemeIcon, SpotifyIcon, UserIcon } from './components/Icons';
 
 export const EQ_PRESETS: { [name: string]: number[] } = {
@@ -70,7 +68,7 @@ const App: React.FC = () => {
   const [isEqEnabled, setIsEqEnabled] = useState<boolean>(false);
   const [eqSettings, setEqSettings] = useState<number[]>(EQ_PRESETS['Flat']);
   const [showEq, setShowEq] = useState(false);
-  const [eqPosition, setEqPosition] = useState({ x: window.innerWidth - 420, y: Math.max(20, window.innerHeight - 450) });
+  const [userEqPresets, setUserEqPresets] = useState<{ [name: string]: number[] }>({});
 
   // --- Gemini AI Analysis State ---
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
@@ -162,6 +160,11 @@ const App: React.FC = () => {
     const lq = searchQuery.toLowerCase().trim();
     return activePlaylistTracks.filter(t => t.name.toLowerCase().includes(lq) || t.artists?.join(', ').toLowerCase().includes(lq));
   }, [activePlaylistTracks, searchQuery]);
+
+  const combinedEqPresets = useMemo(() => ({
+    ...EQ_PRESETS,
+    ...userEqPresets
+  }), [userEqPresets]);
 
   // Fix: Moved setupAudioContext and other handlers before effects to prevent 'used before declaration' errors.
   // --- Handlers & Callbacks ---
@@ -280,6 +283,20 @@ const App: React.FC = () => {
     if (event.target) event.target.value = ''; setIsImporting(false);
   };
 
+  const handleSeekBy = useCallback((seconds: number) => {
+    if (!currentTrack) return;
+    if (currentTrack.source === 'local' && audioRef.current) {
+        audioRef.current.currentTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seconds));
+    }
+    if (currentTrack.source === 'spotify' && spotifyPlayer) {
+        spotifyPlayer.getCurrentState().then((state: any) => {
+            if (!state) return;
+            const newPosition = Math.max(0, Math.min(state.duration, state.position + (seconds * 1000)));
+            spotifyPlayer.seek(newPosition);
+        });
+    }
+  }, [currentTrack, duration, spotifyPlayer]);
+
   const handleKeyboardShortcuts = useCallback((e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.code) {
@@ -288,8 +305,14 @@ const App: React.FC = () => {
         case 'ArrowLeft': case 'Numpad4': e.preventDefault(); playPrev(); break;
         case 'ArrowUp': case 'Numpad8': e.preventDefault(); setVolume(v => Math.min(1, v + VOLUME_STEP)); break;
         case 'ArrowDown': case 'Numpad2': e.preventDefault(); setVolume(v => Math.max(0, v - VOLUME_STEP)); break;
+        case 'Numpad0': e.preventDefault(); setIsShuffle(s => !s); break;
+        case 'NumpadDecimal': e.preventDefault(); setIsRepeat(r => !r); break;
+        case 'Numpad7': e.preventDefault(); handleSeekBy(-6); break;
+        case 'Numpad1': e.preventDefault(); handleSeekBy(-3); break;
+        case 'Numpad9': e.preventDefault(); handleSeekBy(6); break;
+        case 'Numpad3': e.preventDefault(); handleSeekBy(3); break;
       }
-  }, [handlePlayPause, playNext, playPrev]);
+  }, [handlePlayPause, playNext, playPrev, handleSeekBy]);
   
   // Player Event Handlers
   const handleTimeUpdate = () => { if (audioRef.current) { const { currentTime, duration } = audioRef.current; setCurrentTime(currentTime); if(duration) setProgress((currentTime / duration) * 100); } };
@@ -337,6 +360,41 @@ const App: React.FC = () => {
   const handleAddToPlaylist = async (playlistId: string) => { if (!trackToAddToPlaylist) return; const updatedPls = playlists.map(p => (p.id === playlistId && !p.trackUrls.includes(trackToAddToPlaylist.url)) ? { ...p, trackUrls: [...p.trackUrls, trackToAddToPlaylist.url] } : p); setPlaylists(updatedPls); await savePlaylists(updatedPls); setTrackToAddToPlaylist(null); };
   const handleCreatePlaylistAndAdd = async (playlistName: string) => { if (!trackToAddToPlaylist) return; const newPlaylist: PlaylistType = { id: uuidv4(), name: playlistName, trackUrls: [trackToAddToPlaylist.url] }; const updatedPls = [...playlists, newPlaylist]; setPlaylists(updatedPls); await savePlaylists(updatedPls); setTrackToAddToPlaylist(null); };
   const handleRemoveTrackFromPlaylist = async (trackUrl: string) => { const activePl = playlists.find(p => p.id === activePlaylistId); if (!activePl || activePl.system) return; const updatedPls = playlists.map(p => p.id === activePlaylistId ? { ...p, trackUrls: p.trackUrls.filter(url => url !== trackUrl) } : p); setPlaylists(updatedPls); await savePlaylists(updatedPls); };
+  const handleSaveEqPreset = async (name: string) => {
+    if (!name.trim() || EQ_PRESETS[name] || userEqPresets[name]) {
+        alert("Preset name is invalid or already exists.");
+        return;
+    }
+    const newPresets = { ...userEqPresets, [name.trim()]: eqSettings };
+    setUserEqPresets(newPresets);
+    await saveUserEqPresets(newPresets);
+  };
+  const handleDeleteEqPreset = async (name: string) => {
+      if (!userEqPresets[name]) return;
+      const newPresets = { ...userEqPresets };
+      delete newPresets[name];
+      setUserEqPresets(newPresets);
+      await saveUserEqPresets(newPresets);
+  };
+  
+  const handleProfileTrackSelect = (trackUrl: string) => {
+    const trackToPlay = allTracks.find(t => t.url === trackUrl);
+    if (trackToPlay) {
+        // Profile modal stats are local-only, so this is a safe assumption
+        if (trackToPlay.source === 'local') {
+            // Switch to local library view if on Spotify
+            if (librarySource !== 'local') {
+                setLibrarySource('local');
+            }
+            // Switch to a playlist where the track is guaranteed to be visible
+            setActivePlaylistId('all-tracks');
+            // Play the track
+            handleTrackSelect(trackToPlay);
+            // Close the modal
+            setIsProfileModalOpen(false);
+        }
+    }
+  };
 
   // --- Effects ---
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
@@ -352,9 +410,10 @@ const App: React.FC = () => {
     }
 
     const loadData = async () => {
-        const [metadata, playlists, stats] = await Promise.all([getTrackMetadata(), getAllPlaylists(), getStats()]);
+        const [metadata, playlists, stats, eqPresets] = await Promise.all([getTrackMetadata(), getAllPlaylists(), getStats(), getUserEqPresets()]);
         if (metadata) { if (!metadata.analysis) metadata.analysis = {}; setTrackMetadata(metadata); }
         if (stats) setListeningStats(stats);
+        if (eqPresets) setUserEqPresets(eqPresets);
         
         if (playlists && playlists.length > 0) {
             setPlaylists(playlists);
@@ -648,7 +707,7 @@ const App: React.FC = () => {
         progress={progress} duration={duration} currentTime={currentTime}
         playlistSize={allTracks.length} volume={volume}
         isLoading={!!loadingTrackUrl} isImporting={isImporting} isAnalyzing={isAnalyzing}
-        showEq={showEq} isEqEnabled={isEqEnabled} eqSettings={eqSettings} eqPosition={eqPosition}
+        showEq={showEq} isEqEnabled={isEqEnabled} eqSettings={eqSettings}
         timeDisplayMode={timeDisplayMode}
         isSleepTimerPopoverOpen={isSleepTimerPopoverOpen}
         sleepTimerRemaining={sleepTimerRemaining}
@@ -661,9 +720,8 @@ const App: React.FC = () => {
         onEqToggle={() => setShowEq(!showEq)}
         onEqEnabledChange={(e) => { if(audioContextRef.current?.state === 'suspended') audioContextRef.current.resume(); setIsEqEnabled(e); }}
         onEqGainChange={(band, gain) => setEqSettings(p => { const n = [...p]; n[band] = gain; return n; })}
-        onEqPresetChange={(p) => setEqSettings(EQ_PRESETS[p])}
+        onEqPresetChange={(p) => setEqSettings(combinedEqPresets[p])}
         onAnalyze={() => handleAnalyzeTrack()}
-        onEqPositionChange={setEqPosition}
         onTimeDisplayToggle={() => setTimeDisplayMode(p => p === 'elapsed' ? 'remaining' : 'elapsed')}
         onToggleSleepTimerPopover={() => setIsSleepTimerPopoverOpen(p => !p)}
         onSetSleepTimer={(mins) => {
@@ -674,6 +732,10 @@ const App: React.FC = () => {
           const newTimerId = window.setTimeout(() => { setIsPlaying(false); setSleepTimerId(null); setSleepTimerRemaining(null); }, seconds * 1000);
           setSleepTimerId(newTimerId);
         }}
+        allPresets={combinedEqPresets}
+        userPresets={userEqPresets}
+        onSaveEqPreset={handleSaveEqPreset}
+        onDeleteEqPreset={handleDeleteEqPreset}
       />
 
       <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} onCanPlayThrough={handleCanPlayThrough} crossOrigin="anonymous" />
@@ -693,6 +755,7 @@ const App: React.FC = () => {
         onResetStats={() => resetStats().then(() => setListeningStats({ totalPlayTime: 0, playCounts: {}, history: [] }))}
         userSpotifyClientId={userSpotifyClientId}
         onSaveSpotifyClientId={handleSaveSpotifyClientId}
+        onTrackSelect={handleProfileTrackSelect}
       />
     </div>
   );

@@ -6,11 +6,12 @@ type StoredTrack = Omit<Track, 'url'>;
 let db: IDBDatabase | null = null;
 
 const DB_NAME = 'roboJukeboxDB';
-const DB_VERSION = 3; // Incremented version for schema change
+const DB_VERSION = 4; // Incremented version for schema change
 const TRACKS_STORE_NAME = 'tracks';
 const PLAYLISTS_STORE_NAME = 'playlists';
 const STATS_STORE_NAME = 'listeningStats';
 const TRACK_METADATA_STORE_NAME = 'trackMetadata';
+const USER_EQ_PRESETS_STORE_NAME = 'userEqPresets';
 
 
 export const initDB = (): Promise<IDBDatabase> => {
@@ -50,6 +51,9 @@ export const initDB = (): Promise<IDBDatabase> => {
       }
       if (!db.objectStoreNames.contains(TRACK_METADATA_STORE_NAME)) {
         db.createObjectStore(TRACK_METADATA_STORE_NAME, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(USER_EQ_PRESETS_STORE_NAME)) {
+        db.createObjectStore(USER_EQ_PRESETS_STORE_NAME, { keyPath: 'id' });
       }
     };
   });
@@ -106,11 +110,12 @@ export const clearTracks = async (): Promise<void> => {
 
 export const clearAllData = async (): Promise<void> => {
     const db = await initDB();
-    const transaction = db.transaction([TRACKS_STORE_NAME, PLAYLISTS_STORE_NAME, STATS_STORE_NAME, TRACK_METADATA_STORE_NAME], 'readwrite');
+    const transaction = db.transaction([TRACKS_STORE_NAME, PLAYLISTS_STORE_NAME, STATS_STORE_NAME, TRACK_METADATA_STORE_NAME, USER_EQ_PRESETS_STORE_NAME], 'readwrite');
     const tracksStore = transaction.objectStore(TRACKS_STORE_NAME);
     const playlistsStore = transaction.objectStore(PLAYLISTS_STORE_NAME);
     const statsStore = transaction.objectStore(STATS_STORE_NAME);
     const metadataStore = transaction.objectStore(TRACK_METADATA_STORE_NAME);
+    const userEqPresetsStore = transaction.objectStore(USER_EQ_PRESETS_STORE_NAME);
 
     return new Promise((resolve, reject) => {
         transaction.oncomplete = () => resolve();
@@ -119,6 +124,7 @@ export const clearAllData = async (): Promise<void> => {
         playlistsStore.clear();
         statsStore.clear();
         metadataStore.clear();
+        userEqPresetsStore.clear();
     });
 };
 
@@ -243,5 +249,41 @@ export const saveTrackMetadata = async (metadata: TrackMetadata): Promise<void> 
             reject(transaction.error);
         };
         store.put({ id: METADATA_KEY, data: metadata });
+    });
+};
+
+// --- User EQ Presets Functions ---
+
+const EQ_PRESETS_KEY = 'user-eq-presets';
+
+export const getUserEqPresets = async (): Promise<{ [name: string]: number[] } | null> => {
+    const db = await initDB();
+    const transaction = db.transaction(USER_EQ_PRESETS_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(USER_EQ_PRESETS_STORE_NAME);
+    const request = store.get(EQ_PRESETS_KEY);
+
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            resolve(request.result?.data ?? null);
+        };
+        request.onerror = () => {
+            console.error('Error fetching user EQ presets:', request.error);
+            reject(request.error);
+        };
+    });
+};
+
+export const saveUserEqPresets = async (presets: { [name: string]: number[] }): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(USER_EQ_PRESETS_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(USER_EQ_PRESETS_STORE_NAME);
+    
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => {
+            console.error('Error saving user EQ presets:', transaction.error);
+            reject(transaction.error);
+        };
+        store.put({ id: EQ_PRESETS_KEY, data: presets });
     });
 };
