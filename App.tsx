@@ -1,17 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
-import type { Track, TrackMetadata, AnalysisResult, Playlist as PlaylistType, ListeningStats } from './types';
+import type { Track, TrackMetadata, AnalysisResult, Playlist as PlaylistType, ListeningStats, SoundboardSheetData } from './types';
 import Playlist from './components/Playlist';
 import PlayerControls from './components/PlayerControls';
 import ConfirmationModal from './components/ConfirmationModal';
 import AnalysisModal from './components/AnalysisModal';
+import LyricsModal from './components/LyricsModal';
 import PlaylistSidebar from './components/PlaylistSidebar';
 import AddToQueueModal from './components/AddToQueueModal';
 import ShortcutsModal from './components/ShortcutsModal';
 import HelpModal from './components/HelpModal';
 import ProfileModal from './components/ProfileModal';
-import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats, getUserEqPresets, saveUserEqPresets } from './db';
+import Soundboard from './components/Soundboard';
+import { DEFAULT_SOUNDBOARD_SHEETS } from './components/SoundboardSamples';
+import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats, getUserEqPresets, saveUserEqPresets, getSoundboardSheets, saveSoundboardSheets } from './db';
 import { ShortcutsIcon, HelpIcon, ThemeIcon, SpotifyIcon, UserIcon } from './components/Icons';
 
 export const EQ_PRESETS: { [name: string]: number[] } = {
@@ -50,7 +53,7 @@ const App: React.FC = () => {
 
   // --- UI/Mode State ---
   const [searchQuery, setSearchQuery] = useState('');
-  const [isShuffle, setIsShuffle] = useState<boolean>(false);
+  const [isShuffle, setIsShuffle] = useState<boolean>(true);
   const [isRepeat, setIsRepeat] = useState<boolean>(false);
   const [loadingTrackUrl, setLoadingTrackUrl] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -69,14 +72,21 @@ const App: React.FC = () => {
   const [eqSettings, setEqSettings] = useState<number[]>(EQ_PRESETS['Flat']);
   const [showEq, setShowEq] = useState(false);
   const [userEqPresets, setUserEqPresets] = useState<{ [name: string]: number[] }>({});
+  const [balance, setBalance] = useState<number>(0);
+  const [isBassBoostEnabled, setIsBassBoostEnabled] = useState<boolean>(false);
 
   // --- Gemini AI Analysis State ---
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // --- Gemini AI Lyrics State ---
+  const [isLyricsModalOpen, setIsLyricsModalOpen] = useState(false);
+  const [lyricsResult, setLyricsResult] = useState<string | null>(null);
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+
   // --- Metadata & Stats State ---
-  const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {} });
+  const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {}, lyrics: {} });
   const [listeningStats, setListeningStats] = useState<ListeningStats>({ totalPlayTime: 0, playCounts: {}, history: [] });
   const listeningStatsRef = useRef(listeningStats);
   useEffect(() => {
@@ -87,6 +97,11 @@ const App: React.FC = () => {
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSoundboardOpen, setIsSoundboardOpen] = useState(false);
+
+  // --- Soundboard State ---
+  const [soundboardSheets, setSoundboardSheets] = useState<SoundboardSheetData>({});
+  const [currentSoundboardSheet, setCurrentSoundboardSheet] = useState(0);
 
   // --- Sleep Timer State ---
   const [sleepTimerId, setSleepTimerId] = useState<number | null>(null);
@@ -111,7 +126,11 @@ const App: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
+  const pannerNodeRef = useRef<StereoPannerNode | null>(null);
+  const bassBoostNodeRef = useRef<BiquadFilterNode | null>(null);
   const currentTrackRef = useRef<Track | null>(null);
+  const audioPoolRef = useRef<HTMLAudioElement[]>([]);
+  const audioPoolIndexRef = useRef(0);
 
   // --- Utility Functions ---
   const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve((reader.result as string).split(',')[1]); reader.onerror = (error) => reject(error); });
@@ -151,7 +170,10 @@ const App: React.FC = () => {
 
   const activePlaylistTracks = useMemo<Track[]>(() => {
     if (librarySource === 'spotify') return spotifyTracks;
-    const activePl = combinedPlaylists.find(p => p.id === activePlaylistId); if (!activePl) return [];
+    const activePl = combinedPlaylists.find(p => p.id === activePlaylistId);
+    if (!activePl || !Array.isArray(activePl.trackUrls)) {
+        return [];
+    }
     return allTracks.filter(t => activePl.trackUrls.includes(t.url)).sort((a, b) => activePl.trackUrls.indexOf(a.url) - activePl.trackUrls.indexOf(b.url));
   }, [activePlaylistId, combinedPlaylists, allTracks, librarySource, spotifyTracks]);
 
@@ -173,15 +195,33 @@ const App: React.FC = () => {
     try {
         const context = new (window.AudioContext || (window as any).webkitAudioContext)();
         const source = context.createMediaElementSource(audioRef.current);
+
+        const bassBoostFilter = context.createBiquadFilter();
+        bassBoostFilter.type = 'lowshelf';
+        bassBoostFilter.frequency.value = 250;
+        bassBoostFilter.gain.value = 0;
+
         const eqNodes = BAND_FREQUENCIES.map(freq => {
             const filter = context.createBiquadFilter();
             filter.type = 'peaking'; filter.frequency.value = freq; filter.Q.value = 1.2; filter.gain.value = 0;
             return filter;
         });
+        
+        const panner = context.createStereoPanner();
+        panner.pan.value = 0;
+
         let lastNode: AudioNode = source;
-        eqNodes.forEach(node => { lastNode.connect(node); lastNode = node; });
+        lastNode = lastNode.connect(bassBoostFilter);
+        eqNodes.forEach(node => { lastNode = lastNode.connect(node); });
+        lastNode = lastNode.connect(panner);
         lastNode.connect(context.destination);
-        audioContextRef.current = context; sourceNodeRef.current = source; eqNodesRef.current = eqNodes;
+        
+        audioContextRef.current = context; 
+        sourceNodeRef.current = source; 
+        bassBoostNodeRef.current = bassBoostFilter;
+        eqNodesRef.current = eqNodes;
+        pannerNodeRef.current = panner;
+
     } catch (error) { console.error("Failed to initialize Web Audio API:", error); }
   }, []);
 
@@ -273,7 +313,7 @@ const App: React.FC = () => {
     const audioFiles: File[] = [...files].filter(f => AUDIO_EXTENSIONS.includes(f.name.slice(f.name.lastIndexOf('.')).toLowerCase()));
     if (audioFiles.length > 0) {
       const newTracks: Track[] = audioFiles.map((file: File) => ({
-        source: 'local', file, url: URL.createObjectURL(file), name: file.name.replace(/\.[^/.]+$/, ""), duration: 0, relativePath: file.webkitRelativePath || file.name,
+        source: 'local', file, url: URL.createObjectURL(file), name: file.name.replace(/\.[^/.]+$/, ""), duration: 0, relativePath: file.webkitRelativePath || file.name, createdAt: new Date().toISOString(),
       }));
       setAllTracks(newTracks);
       setCurrentTrack(newTracks[0]);
@@ -330,6 +370,62 @@ const App: React.FC = () => {
     setIsClearConfirmOpen(false);
   };
   
+  const handleGenerateLyrics = async (forceRegenerate = false) => {
+    if (!currentTrack) return;
+
+    if (!forceRegenerate && trackMetadata.lyrics?.[currentTrack.url]) {
+        setLyricsResult(trackMetadata.lyrics[currentTrack.url]);
+        setIsGeneratingLyrics(false);
+        setIsLyricsModalOpen(true);
+        return;
+    }
+
+    setIsLyricsModalOpen(true);
+    setIsGeneratingLyrics(true);
+    setLyricsResult(null);
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
+        let response;
+
+        if (currentTrack.source === 'local' && currentTrack.file) {
+            const audioData = await fileToBase64(currentTrack.file);
+            const audioPart = { inlineData: { mimeType: currentTrack.file.type || 'audio/mpeg', data: audioData } };
+            const prompt = "Transcribe the lyrics from the provided audio file. If the song is instrumental, state that clearly. Only return the transcribed text.";
+            response = await ai.models.generateContent({
+                model: 'gemini-2.5-pro',
+                contents: { parts: [audioPart, { text: prompt }] },
+            });
+        } else if (currentTrack.source === 'spotify') {
+            const prompt = `What are the lyrics for the song "${currentTrack.name}" by ${currentTrack.artists?.join(', ')}? If you cannot find the lyrics, state that clearly. Only return the lyrics as plain text.`;
+            response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+        } else {
+            throw new Error("Unsupported track source for lyrics generation.");
+        }
+
+        const generatedLyrics = response.text;
+        setLyricsResult(generatedLyrics);
+
+        const newMetadata: TrackMetadata = {
+            ...trackMetadata,
+            lyrics: {
+                ...(trackMetadata.lyrics ?? {}),
+                [currentTrack.url]: generatedLyrics,
+            },
+        };
+        setTrackMetadata(newMetadata);
+        await saveTrackMetadata(newMetadata);
+    } catch (error) {
+        console.error("Error generating lyrics with Gemini:", error);
+        setLyricsResult("Could not generate lyrics. An error occurred while communicating with the AI, or this feature is not supported for the current track.");
+    } finally {
+        setIsGeneratingLyrics(false);
+    }
+  };
+
   const handleAnalyzeTrack = async (forceRegenerate = false) => {
     if (!currentTrack || currentTrack.source !== 'local' || !currentTrack.file) return;
     if (!forceRegenerate && trackMetadata.analysis?.[currentTrack.url]) { setAnalysisResult(trackMetadata.analysis[currentTrack.url]); setIsAnalysisModalOpen(true); return; }
@@ -357,9 +453,34 @@ const App: React.FC = () => {
     const updatedUserPls = playlists.map(p => p.id === activePlaylistId ? { ...p, trackUrls: newUrlOrder } : p); setPlaylists(updatedUserPls); await savePlaylists(updatedUserPls);
   };
   const handleCreatePlaylist = async (name: string) => { const newPlaylist: PlaylistType = { id: uuidv4(), name, trackUrls: [] }; const updatedPls = [...playlists, newPlaylist]; setPlaylists(updatedPls); await savePlaylists(updatedPls); setActivePlaylistId(newPlaylist.id); };
-  const handleAddToPlaylist = async (playlistId: string) => { if (!trackToAddToPlaylist) return; const updatedPls = playlists.map(p => (p.id === playlistId && !p.trackUrls.includes(trackToAddToPlaylist.url)) ? { ...p, trackUrls: [...p.trackUrls, trackToAddToPlaylist.url] } : p); setPlaylists(updatedPls); await savePlaylists(updatedPls); setTrackToAddToPlaylist(null); };
+  const handleAddToPlaylist = async (playlistId: string) => {
+      if (!trackToAddToPlaylist) return;
+      const updatedPls = playlists.map(p => {
+          if (p.id === playlistId) {
+              const currentUrls = p.trackUrls || [];
+              if (!currentUrls.includes(trackToAddToPlaylist.url)) {
+                  return { ...p, trackUrls: [...currentUrls, trackToAddToPlaylist.url] };
+              }
+          }
+          return p;
+      });
+      setPlaylists(updatedPls);
+      await savePlaylists(updatedPls);
+      setTrackToAddToPlaylist(null);
+  };
   const handleCreatePlaylistAndAdd = async (playlistName: string) => { if (!trackToAddToPlaylist) return; const newPlaylist: PlaylistType = { id: uuidv4(), name: playlistName, trackUrls: [trackToAddToPlaylist.url] }; const updatedPls = [...playlists, newPlaylist]; setPlaylists(updatedPls); await savePlaylists(updatedPls); setTrackToAddToPlaylist(null); };
-  const handleRemoveTrackFromPlaylist = async (trackUrl: string) => { const activePl = playlists.find(p => p.id === activePlaylistId); if (!activePl || activePl.system) return; const updatedPls = playlists.map(p => p.id === activePlaylistId ? { ...p, trackUrls: p.trackUrls.filter(url => url !== trackUrl) } : p); setPlaylists(updatedPls); await savePlaylists(updatedPls); };
+  const handleRemoveTrackFromPlaylist = async (trackUrl: string) => {
+      const activePl = playlists.find(p => p.id === activePlaylistId);
+      if (!activePl || activePl.system) return;
+      const updatedPls = playlists.map(p => {
+          if (p.id === activePlaylistId) {
+              return { ...p, trackUrls: (p.trackUrls || []).filter(url => url !== trackUrl) };
+          }
+          return p;
+      });
+      setPlaylists(updatedPls);
+      await savePlaylists(updatedPls);
+  };
   const handleSaveEqPreset = async (name: string) => {
     if (!name.trim() || EQ_PRESETS[name] || userEqPresets[name]) {
         alert("Preset name is invalid or already exists.");
@@ -375,6 +496,22 @@ const App: React.FC = () => {
       delete newPresets[name];
       setUserEqPresets(newPresets);
       await saveUserEqPresets(newPresets);
+  };
+  const handleBalanceChange = (value: number) => {
+    setBalance(value);
+    if (pannerNodeRef.current) {
+        pannerNodeRef.current.pan.value = value;
+    }
+  };
+  const handleBassBoostToggle = () => {
+    setIsBassBoostEnabled(prev => {
+        const newState = !prev;
+        if (bassBoostNodeRef.current) {
+            if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+            bassBoostNodeRef.current.gain.value = newState ? 6 : 0; // 6dB boost
+        }
+        return newState;
+    });
   };
   
   const handleProfileTrackSelect = (trackUrl: string) => {
@@ -396,6 +533,31 @@ const App: React.FC = () => {
     }
   };
 
+  const playSoundEffect = useCallback((url: string) => {
+    const POOL_SIZE = 10;
+    if (audioPoolRef.current.length === 0) {
+      for (let i = 0; i < POOL_SIZE; i++) {
+        audioPoolRef.current.push(new Audio());
+      }
+    }
+    
+    const audio = audioPoolRef.current[audioPoolIndexRef.current];
+    audio.src = url;
+    audio.volume = volume;
+    audio.play().catch(e => console.error("Sound effect playback error:", e));
+
+    audioPoolIndexRef.current = (audioPoolIndexRef.current + 1) % POOL_SIZE;
+  }, [volume]);
+
+  const handleUpdateSoundboardPad = async (sheet: number, id: number, name: string, soundUrl: string) => {
+    const newSheets = { ...soundboardSheets };
+    if (newSheets[sheet]) {
+        newSheets[sheet] = newSheets[sheet].map(p => p.id === id ? { ...p, name, soundUrl } : p);
+        setSoundboardSheets(newSheets);
+        await saveSoundboardSheets(newSheets);
+    }
+  };
+
   // --- Effects ---
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
 
@@ -410,11 +572,29 @@ const App: React.FC = () => {
     }
 
     const loadData = async () => {
-        const [metadata, playlists, stats, eqPresets] = await Promise.all([getTrackMetadata(), getAllPlaylists(), getStats(), getUserEqPresets()]);
-        if (metadata) { if (!metadata.analysis) metadata.analysis = {}; setTrackMetadata(metadata); }
+        const [metadata, playlists, stats, eqPresets, sheets] = await Promise.all([
+          getTrackMetadata(), 
+          getAllPlaylists(), 
+          getStats(), 
+          getUserEqPresets(),
+          getSoundboardSheets()
+        ]);
+
+        if (metadata) { 
+            if (!metadata.analysis) metadata.analysis = {};
+            if (!metadata.lyrics) metadata.lyrics = {};
+            setTrackMetadata(metadata);
+        }
         if (stats) setListeningStats(stats);
         if (eqPresets) setUserEqPresets(eqPresets);
         
+        if (sheets && Object.keys(sheets).length > 0) {
+          setSoundboardSheets(sheets);
+        } else {
+          setSoundboardSheets(DEFAULT_SOUNDBOARD_SHEETS);
+          await saveSoundboardSheets(DEFAULT_SOUNDBOARD_SHEETS);
+        }
+
         if (playlists && playlists.length > 0) {
             setPlaylists(playlists);
         } else {
@@ -707,10 +887,13 @@ const App: React.FC = () => {
         progress={progress} duration={duration} currentTime={currentTime}
         playlistSize={allTracks.length} volume={volume}
         isLoading={!!loadingTrackUrl} isImporting={isImporting} isAnalyzing={isAnalyzing}
+        isGeneratingLyrics={isGeneratingLyrics}
         showEq={showEq} isEqEnabled={isEqEnabled} eqSettings={eqSettings}
+        balance={balance} isBassBoostEnabled={isBassBoostEnabled}
         timeDisplayMode={timeDisplayMode}
         isSleepTimerPopoverOpen={isSleepTimerPopoverOpen}
         sleepTimerRemaining={sleepTimerRemaining}
+        isSoundboardOpen={isSoundboardOpen}
         onPlayPause={handlePlayPause} onNext={playNext} onPrev={playPrev}
         onShuffleToggle={() => setIsShuffle(!isShuffle)} onRepeatToggle={() => setIsRepeat(!isRepeat)}
         onSeek={handleSeek} onAddSongsClick={() => fileInputRef.current?.click()}
@@ -721,7 +904,10 @@ const App: React.FC = () => {
         onEqEnabledChange={(e) => { if(audioContextRef.current?.state === 'suspended') audioContextRef.current.resume(); setIsEqEnabled(e); }}
         onEqGainChange={(band, gain) => setEqSettings(p => { const n = [...p]; n[band] = gain; return n; })}
         onEqPresetChange={(p) => setEqSettings(combinedEqPresets[p])}
+        onBalanceChange={handleBalanceChange}
+        onBassBoostToggle={handleBassBoostToggle}
         onAnalyze={() => handleAnalyzeTrack()}
+        onGenerateLyrics={() => handleGenerateLyrics()}
         onTimeDisplayToggle={() => setTimeDisplayMode(p => p === 'elapsed' ? 'remaining' : 'elapsed')}
         onToggleSleepTimerPopover={() => setIsSleepTimerPopoverOpen(p => !p)}
         onSetSleepTimer={(mins) => {
@@ -732,6 +918,7 @@ const App: React.FC = () => {
           const newTimerId = window.setTimeout(() => { setIsPlaying(false); setSleepTimerId(null); setSleepTimerRemaining(null); }, seconds * 1000);
           setSleepTimerId(newTimerId);
         }}
+        onToggleSoundboard={() => setIsSoundboardOpen(prev => !prev)}
         allPresets={combinedEqPresets}
         userPresets={userEqPresets}
         onSaveEqPreset={handleSaveEqPreset}
@@ -744,6 +931,14 @@ const App: React.FC = () => {
         <p className="text-sm text-[var(--text-secondary)]">Are you sure you want to permanently delete all tracks and playlists? This action cannot be undone.</p>
       </ConfirmationModal>
       <AnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} analysis={analysisResult} isLoading={isAnalyzing} trackName={currentTrack?.name ?? null} onRegenerate={() => handleAnalyzeTrack(true)} />
+      <LyricsModal 
+        isOpen={isLyricsModalOpen} 
+        onClose={() => setIsLyricsModalOpen(false)} 
+        lyrics={lyricsResult} 
+        isLoading={isGeneratingLyrics} 
+        trackName={currentTrack?.name ?? null}
+        onRegenerate={() => handleGenerateLyrics(true)}
+      />
       <AddToQueueModal isOpen={!!trackToAddToPlaylist} onClose={() => setTrackToAddToPlaylist(null)} playlists={playlists} onSelectPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylistAndAdd} trackName={trackToAddToPlaylist?.name ?? null} />
       <ShortcutsModal isOpen={isShortcutsModalOpen} onClose={() => setIsShortcutsModalOpen(false)} />
       <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
@@ -756,6 +951,15 @@ const App: React.FC = () => {
         userSpotifyClientId={userSpotifyClientId}
         onSaveSpotifyClientId={handleSaveSpotifyClientId}
         onTrackSelect={handleProfileTrackSelect}
+      />
+      <Soundboard
+        isOpen={isSoundboardOpen}
+        onClose={() => setIsSoundboardOpen(false)}
+        sheets={soundboardSheets}
+        currentSheet={currentSoundboardSheet}
+        onSheetChange={setCurrentSoundboardSheet}
+        onUpdatePad={handleUpdateSoundboardPad}
+        onPlaySound={playSoundEffect}
       />
     </div>
   );

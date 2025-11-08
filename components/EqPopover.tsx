@@ -5,9 +5,13 @@ import { CloseIcon, TrashIcon } from './Icons';
 interface EqPopoverProps {
     isEqEnabled: boolean;
     eqSettings: number[];
+    balance: number;
+    isBassBoostEnabled: boolean;
     onEnabledChange: (enabled: boolean) => void;
     onGainChange: (bandIndex: number, gain: number) => void;
     onPresetChange: (presetName: string) => void;
+    onBalanceChange: (value: number) => void;
+    onBassBoostToggle: () => void;
     onClose: () => void;
     presets: { [name: string]: number[] };
     userPresets: { [name: string]: number[] };
@@ -20,9 +24,13 @@ const BAND_LABELS = ['60Hz', '230Hz', '910Hz', '3.6KHz', '8KHz', '14KHz'];
 const EqPopover: React.FC<EqPopoverProps> = ({ 
     isEqEnabled, 
     eqSettings, 
+    balance,
+    isBassBoostEnabled,
     onEnabledChange, 
     onGainChange, 
     onPresetChange,
+    onBalanceChange,
+    onBassBoostToggle,
     onClose,
     presets,
     userPresets,
@@ -157,6 +165,46 @@ const EqPopover: React.FC<EqPopoverProps> = ({
                         Save Current Settings as Preset
                     </button>
                 )}
+            </div>
+            
+            <div className="mb-4 space-y-4 pt-4 border-t border-[var(--border-primary)]">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="bass-boost-toggle" className="font-semibold text-[var(--text-primary)]">Bass Boost</label>
+                    <div className="flex items-center space-x-2">
+                         <span className={`text-xs font-semibold ${isBassBoostEnabled ? 'text-[var(--accent-secondary)]' : 'text-[var(--text-muted)]'}`}>
+                            {isBassBoostEnabled ? 'ON' : 'OFF'}
+                        </span>
+                        <label htmlFor="bass-boost-toggle" className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="bass-boost-toggle" className="sr-only peer" checked={isBassBoostEnabled} onChange={onBassBoostToggle} disabled={!isEqEnabled} />
+                            <div className="w-11 h-6 bg-[var(--bg-tertiary)] rounded-full peer peer-focus:ring-2 peer-focus:ring-[var(--accent-secondary)] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent-secondary)]"></div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div className="flex items-center space-x-4">
+                    <label className="font-semibold text-[var(--text-primary)] w-20">Balance</label>
+                    <div className="flex items-center flex-grow space-x-2">
+                        <span className="text-xs font-bold text-[var(--text-secondary)]">L</span>
+                        <input
+                            type="range"
+                            min="-1"
+                            max="1"
+                            step="0.1"
+                            value={balance}
+                            onChange={(e) => onBalanceChange(Number(e.target.value))}
+                            className="w-full h-1.5 appearance-none rounded-full bg-[var(--bg-tertiary)] cursor-pointer disabled:opacity-50"
+                            disabled={!isEqEnabled}
+                        />
+                        <span className="text-xs font-bold text-[var(--text-secondary)]">R</span>
+                    </div>
+                    <button 
+                        onClick={() => onBalanceChange(0)}
+                        className="text-xs bg-[var(--bg-tertiary)]/70 hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-semibold py-1 px-3 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!isEqEnabled || balance === 0}
+                    >
+                        Reset
+                    </button>
+                </div>
             </div>
 
 

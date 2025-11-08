@@ -1,5 +1,6 @@
 
 
+
 export interface AnalysisResult {
   songStructure: string;
   musicalElements: string;
@@ -19,6 +20,7 @@ export interface Track {
   // --- Local Only ---
   file?: File;
   relativePath?: string;
+  createdAt?: string; // Timestamp when the track was added
 
   // --- Spotify Only ---
   id?: string; // Spotify track ID
@@ -44,4 +46,15 @@ export interface TrackMetadata {
   likes: { [url: string]: boolean };
   ratings: { [url: string]: number };
   analysis?: { [url: string]: AnalysisResult };
+  lyrics?: { [url: string]: string };
 }
+
+export interface SoundboardPad {
+  id: number;
+  name: string;
+  soundUrl: string; // Base64 Data URI
+}
+
+export type SoundboardSheetData = {
+  [sheet: number]: SoundboardPad[];
+};

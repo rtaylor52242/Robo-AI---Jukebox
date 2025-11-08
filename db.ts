@@ -1,4 +1,4 @@
-import type { Playlist, Track, ListeningStats, TrackMetadata } from './types';
+import type { Playlist, Track, ListeningStats, TrackMetadata, SoundboardSheetData } from './types';
 
 // The type stored in the DB doesn't have the temporary object URL.
 type StoredTrack = Omit<Track, 'url'>;
@@ -6,12 +6,13 @@ type StoredTrack = Omit<Track, 'url'>;
 let db: IDBDatabase | null = null;
 
 const DB_NAME = 'roboJukeboxDB';
-const DB_VERSION = 4; // Incremented version for schema change
+const DB_VERSION = 5; // Incremented version for schema change
 const TRACKS_STORE_NAME = 'tracks';
 const PLAYLISTS_STORE_NAME = 'playlists';
 const STATS_STORE_NAME = 'listeningStats';
 const TRACK_METADATA_STORE_NAME = 'trackMetadata';
 const USER_EQ_PRESETS_STORE_NAME = 'userEqPresets';
+const SOUNDBOARD_PADS_STORE_NAME = 'soundboardPads';
 
 
 export const initDB = (): Promise<IDBDatabase> => {
@@ -54,6 +55,9 @@ export const initDB = (): Promise<IDBDatabase> => {
       }
       if (!db.objectStoreNames.contains(USER_EQ_PRESETS_STORE_NAME)) {
         db.createObjectStore(USER_EQ_PRESETS_STORE_NAME, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(SOUNDBOARD_PADS_STORE_NAME)) {
+        db.createObjectStore(SOUNDBOARD_PADS_STORE_NAME, { keyPath: 'id' });
       }
     };
   });
@@ -110,12 +114,13 @@ export const clearTracks = async (): Promise<void> => {
 
 export const clearAllData = async (): Promise<void> => {
     const db = await initDB();
-    const transaction = db.transaction([TRACKS_STORE_NAME, PLAYLISTS_STORE_NAME, STATS_STORE_NAME, TRACK_METADATA_STORE_NAME, USER_EQ_PRESETS_STORE_NAME], 'readwrite');
+    const transaction = db.transaction([TRACKS_STORE_NAME, PLAYLISTS_STORE_NAME, STATS_STORE_NAME, TRACK_METADATA_STORE_NAME, USER_EQ_PRESETS_STORE_NAME, SOUNDBOARD_PADS_STORE_NAME], 'readwrite');
     const tracksStore = transaction.objectStore(TRACKS_STORE_NAME);
     const playlistsStore = transaction.objectStore(PLAYLISTS_STORE_NAME);
     const statsStore = transaction.objectStore(STATS_STORE_NAME);
     const metadataStore = transaction.objectStore(TRACK_METADATA_STORE_NAME);
     const userEqPresetsStore = transaction.objectStore(USER_EQ_PRESETS_STORE_NAME);
+    const soundboardPadsStore = transaction.objectStore(SOUNDBOARD_PADS_STORE_NAME);
 
     return new Promise((resolve, reject) => {
         transaction.oncomplete = () => resolve();
@@ -125,6 +130,7 @@ export const clearAllData = async (): Promise<void> => {
         statsStore.clear();
         metadataStore.clear();
         userEqPresetsStore.clear();
+        soundboardPadsStore.clear();
     });
 };
 
@@ -285,5 +291,41 @@ export const saveUserEqPresets = async (presets: { [name: string]: number[] }): 
             reject(transaction.error);
         };
         store.put({ id: EQ_PRESETS_KEY, data: presets });
+    });
+};
+
+// --- Soundboard Pad Functions ---
+
+const SOUNDBOARD_SHEETS_KEY = 'soundboard-sheets';
+
+export const getSoundboardSheets = async (): Promise<SoundboardSheetData | null> => {
+    const db = await initDB();
+    const transaction = db.transaction(SOUNDBOARD_PADS_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(SOUNDBOARD_PADS_STORE_NAME);
+    const request = store.get(SOUNDBOARD_SHEETS_KEY);
+
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            resolve(request.result?.data ?? null);
+        };
+        request.onerror = () => {
+            console.error('Error fetching soundboard sheets:', request.error);
+            reject(request.error);
+        };
+    });
+};
+
+export const saveSoundboardSheets = async (sheets: SoundboardSheetData): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(SOUNDBOARD_PADS_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(SOUNDBOARD_PADS_STORE_NAME);
+
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => {
+            console.error('Error saving soundboard sheets:', transaction.error);
+            reject(transaction.error);
+        };
+        store.put({ id: SOUNDBOARD_SHEETS_KEY, data: sheets });
     });
 };

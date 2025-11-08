@@ -83,7 +83,7 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
                         }`}
                         >
                         <span>{playlist.name}</span>
-                        <span className="text-xs font-mono">{playlist.trackUrls.length}</span>
+                        <span className="text-xs font-mono">{(playlist.trackUrls || []).length}</span>
                         </button>
                     </li>
                     ))}
@@ -104,7 +104,7 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
                             }`}
                             >
                             <span className="truncate pr-2">{playlist.name}</span>
-                            <span className="text-xs font-mono flex-shrink-0">{playlist.trackUrls.length}</span>
+                            <span className="text-xs font-mono flex-shrink-0">{(playlist.trackUrls || []).length}</span>
                             </button>
                         </li>
                         ))}

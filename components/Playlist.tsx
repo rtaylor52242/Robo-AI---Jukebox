@@ -162,10 +162,27 @@ const Playlist: React.FC<PlaylistProps> = ({
             const rating = trackMetadata.ratings[track.url] ?? 0;
             const isBeingDragged = draggedIndex === index;
             const isDragOver = dragOverIndex === index;
-            const trackPlaylists = track.source === 'local' ? playlists.filter(p => p.trackUrls.includes(track.url)) : [];
+            const trackPlaylists = track.source === 'local' ? playlists.filter(p => Array.isArray(p.trackUrls) && p.trackUrls.includes(track.url)) : [];
             const playlistNames = trackPlaylists.map(p => p.name).join(', ');
-            const trackTitleAttr = playlistNames ? `${trackName}\nPlaylists: ${playlistNames}` : trackName;
+            
+            let trackTitleAttr = playlistNames ? `${trackName}\nPlaylists: ${playlistNames}` : trackName;
+            if (track.source === 'local' && track.createdAt) {
+                try {
+                    const creationDate = new Date(track.createdAt).toLocaleString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    trackTitleAttr += `\nAdded: ${creationDate}`;
+                } catch (e) {
+                    console.warn("Could not parse createdAt date for track:", track.name, track.createdAt);
+                }
+            }
+            
             const isDraggable = librarySource === 'local' && !isUserPlaylist;
+
             return (
                 <li
                 key={track.url}

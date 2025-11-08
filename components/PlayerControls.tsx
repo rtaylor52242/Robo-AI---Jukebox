@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Track } from '../types';
-import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon } from './Icons';
+import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon, LyricsIcon, SoundboardIcon } from './Icons';
 import EqPopover from './EqPopover';
 import SleepTimerPopover from './SleepTimerPopover';
 
@@ -17,12 +17,16 @@ interface PlayerControlsProps {
   isLoading: boolean;
   isImporting: boolean;
   isAnalyzing: boolean;
+  isGeneratingLyrics: boolean;
   showEq: boolean;
   isEqEnabled: boolean;
   eqSettings: number[];
+  balance: number;
+  isBassBoostEnabled: boolean;
   timeDisplayMode: 'elapsed' | 'remaining';
   isSleepTimerPopoverOpen: boolean;
   sleepTimerRemaining: number | null;
+  isSoundboardOpen: boolean;
   allPresets: { [name: string]: number[] };
   userPresets: { [name: string]: number[] };
   onPlayPause: () => void;
@@ -39,10 +43,14 @@ interface PlayerControlsProps {
   onEqEnabledChange: (enabled: boolean) => void;
   onEqGainChange: (bandIndex: number, gain: number) => void;
   onEqPresetChange: (presetName: string) => void;
+  onBalanceChange: (value: number) => void;
+  onBassBoostToggle: () => void;
   onAnalyze: () => void;
+  onGenerateLyrics: () => void;
   onTimeDisplayToggle: () => void;
   onToggleSleepTimerPopover: () => void;
   onSetSleepTimer: (minutes: number) => void;
+  onToggleSoundboard: () => void;
   onSaveEqPreset: (name: string) => void;
   onDeleteEqPreset: (name: string) => void;
 }
@@ -67,12 +75,16 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   isLoading,
   isImporting,
   isAnalyzing,
+  isGeneratingLyrics,
   showEq,
   isEqEnabled,
   eqSettings,
+  balance,
+  isBassBoostEnabled,
   timeDisplayMode,
   isSleepTimerPopoverOpen,
   sleepTimerRemaining,
+  isSoundboardOpen,
   allPresets,
   userPresets,
   onPlayPause,
@@ -89,10 +101,14 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onEqEnabledChange,
   onEqGainChange,
   onEqPresetChange,
+  onBalanceChange,
+  onBassBoostToggle,
   onAnalyze,
+  onGenerateLyrics,
   onTimeDisplayToggle,
   onToggleSleepTimerPopover,
   onSetSleepTimer,
+  onToggleSoundboard,
   onSaveEqPreset,
   onDeleteEqPreset,
 }) => {
@@ -173,11 +189,17 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                 </button>
             </div>
             <div className="flex items-center flex-wrap justify-center sm:justify-end gap-x-2 gap-y-2 relative">
+                <button onClick={onGenerateLyrics} title="Generate Lyrics" disabled={!currentTrack || isGeneratingLyrics} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
+                    <LyricsIcon className="w-6 h-6"/>
+                </button>
                 <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing || trackSource !== 'local'} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
                     <AnalyzeIcon className="w-6 h-6"/>
                 </button>
                 <button onClick={onEqToggle} title="Equalizer" disabled={trackSource !== 'local'} className={`transition p-1 rounded-full ${isEqEnabled ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     <EqIcon className="w-6 h-6"/>
+                </button>
+                <button onClick={onToggleSoundboard} title="Soundboard" className={`transition p-1 rounded-full ${isSoundboardOpen ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}>
+                    <SoundboardIcon className="w-6 h-6"/>
                 </button>
                 <button 
                     onClick={onToggleSleepTimerPopover} 
@@ -217,9 +239,13 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
           <EqPopover
             isEqEnabled={isEqEnabled}
             eqSettings={eqSettings}
+            balance={balance}
+            isBassBoostEnabled={isBassBoostEnabled}
             onEnabledChange={onEqEnabledChange}
             onGainChange={onEqGainChange}
             onPresetChange={onEqPresetChange}
+            onBalanceChange={onBalanceChange}
+            onBassBoostToggle={onBassBoostToggle}
             onClose={onEqToggle}
             presets={allPresets}
             userPresets={userPresets}
