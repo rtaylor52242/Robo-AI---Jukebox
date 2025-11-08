@@ -7,6 +7,7 @@ import PlayerControls from './components/PlayerControls';
 import ConfirmationModal from './components/ConfirmationModal';
 import AnalysisModal from './components/AnalysisModal';
 import LyricsModal from './components/LyricsModal';
+import KaraokeModal from './components/KaraokeModal';
 import PlaylistSidebar from './components/PlaylistSidebar';
 import AddToQueueModal from './components/AddToQueueModal';
 import ShortcutsModal from './components/ShortcutsModal';
@@ -84,6 +85,10 @@ const App: React.FC = () => {
   const [isLyricsModalOpen, setIsLyricsModalOpen] = useState(false);
   const [lyricsResult, setLyricsResult] = useState<string | null>(null);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  
+  // --- Karaoke State ---
+  const [isKaraokeModalOpen, setIsKaraokeModalOpen] = useState(false);
+  const [karaokeLyrics, setKaraokeLyrics] = useState<string | null>(null);
 
   // --- Metadata & Stats State ---
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {}, lyrics: {} });
@@ -443,6 +448,45 @@ const App: React.FC = () => {
     } catch (error) { console.error("Error analyzing song with Gemini:", error); setAnalysisResult({ songStructure: "Could not analyze song.", musicalElements: "An error occurred while communicating with the AI.", lyricalComponents: "", productionElements: "", creativeTechnicalAspects: "", regenerationPrompt: "Analysis failed." }); }
     finally { setIsAnalyzing(false); }
   };
+  
+  const handleStartKaraoke = async (track: Track) => {
+    // Set UI state and prepare the track without playing it yet
+    setKaraokeLyrics(null);
+    setIsKaraokeModalOpen(true);
+    setCurrentTrack(track);
+    setIsPlaying(false);
+
+    // Fetch lyrics, regenerating if they don't exist or aren't timestamped
+    let lyrics = trackMetadata.lyrics?.[track.url];
+    if (!lyrics || !lyrics.includes('[')) { 
+        try {
+            const ai = new GoogleGenAI({ apiKey: API_KEY });
+            const prompt = `Transcribe the lyrics from the provided audio file. Provide timestamps for the beginning of each line in the format [mm:ss.xx], where mm is minutes, ss is seconds, and xx is hundredths of a second. For example: [00:12.34] This is a lyric line. Ensure every line of lyric has a timestamp. If the song is instrumental, state that clearly without timestamps. Only return the transcribed text in this timestamped format.`;
+            const audioData = await fileToBase64(track.file as File);
+            const audioPart = { inlineData: { mimeType: track.file?.type || 'audio/mpeg', data: audioData } };
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-pro',
+                contents: { parts: [audioPart, { text: prompt }] },
+            });
+            lyrics = response.text;
+            const newMetadata: TrackMetadata = { ...trackMetadata, lyrics: { ...(trackMetadata.lyrics ?? {}), [track.url]: lyrics } };
+            setTrackMetadata(newMetadata);
+            await saveTrackMetadata(newMetadata);
+        } catch (error) {
+            console.error("Error generating lyrics for karaoke:", error);
+            lyrics = "Could not generate lyrics for this song.";
+        }
+    }
+    
+    // Set the lyrics in the modal
+    setKaraokeLyrics(lyrics);
+
+    // If lyrics were successfully generated, start playback
+    if (lyrics && !lyrics.startsWith("Could not generate")) {
+      setTimeout(() => setIsPlaying(true), 100);
+    }
+  };
+
 
   const handleLikeToggle = async (trackUrl: string) => { const newMetadata: TrackMetadata = { ...trackMetadata, likes: { ...trackMetadata.likes, [trackUrl]: !trackMetadata.likes[trackUrl] } }; setTrackMetadata(newMetadata); await saveTrackMetadata(newMetadata); };
   const handleRateTrack = async (trackUrl: string, rating: number) => { const newRating = (trackMetadata.ratings[trackUrl] || 0) === rating ? 0 : rating; const newMetadata: TrackMetadata = { ...trackMetadata, ratings: { ...trackMetadata.ratings, [trackUrl]: newRating } }; setTrackMetadata(newMetadata); await saveTrackMetadata(newMetadata); };
@@ -877,6 +921,7 @@ const App: React.FC = () => {
             isUserPlaylist={activePlaylist ? !activePlaylist.system : false}
             playlists={playlists}
             librarySource={librarySource}
+            onStartKaraoke={handleStartKaraoke}
             />
         </main>
       </div>
@@ -960,6 +1005,14 @@ const App: React.FC = () => {
         onSheetChange={setCurrentSoundboardSheet}
         onUpdatePad={handleUpdateSoundboardPad}
         onPlaySound={playSoundEffect}
+      />
+       <KaraokeModal
+        isOpen={isKaraokeModalOpen}
+        onClose={() => setIsKaraokeModalOpen(false)}
+        lyrics={karaokeLyrics}
+        trackName={currentTrack?.name ?? null}
+        currentTime={currentTime}
+        duration={duration}
       />
     </div>
   );

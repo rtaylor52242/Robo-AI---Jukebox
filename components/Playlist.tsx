@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { Track, TrackMetadata, Playlist } from '../types';
-import { FolderMusicIcon, MusicNoteIcon, SpinnerIcon, SearchIcon, CloseIcon, TrashIcon, HeartIcon, StarIcon, ShareIcon, PlusIcon, PlaylistIcon, MinusIcon, SpotifyIcon } from './Icons';
+import { FolderMusicIcon, MusicNoteIcon, SpinnerIcon, SearchIcon, CloseIcon, TrashIcon, HeartIcon, StarIcon, ShareIcon, PlusIcon, PlaylistIcon, MinusIcon, SpotifyIcon, KaraokeIcon } from './Icons';
 
 interface PlaylistProps {
   tracks: Track[];
@@ -24,6 +24,7 @@ interface PlaylistProps {
   isUserPlaylist: boolean;
   playlists: Playlist[];
   librarySource: 'local' | 'spotify';
+  onStartKaraoke: (track: Track) => void;
 }
 
 const Playlist: React.FC<PlaylistProps> = ({
@@ -46,6 +47,7 @@ const Playlist: React.FC<PlaylistProps> = ({
   isUserPlaylist,
   playlists,
   librarySource,
+  onStartKaraoke,
 }) => {
   const listRef = useRef<HTMLUListElement>(null);
   const activeItemRef = useRef<HTMLLIElement>(null);
@@ -288,6 +290,13 @@ const Playlist: React.FC<PlaylistProps> = ({
                                 title={isLiked ? 'Unlike' : 'Like'}
                             >
                                 <HeartIcon className={`w-5 h-5 transition-colors ${isLiked ? 'text-[var(--like-primary)]' : 'hover:text-[var(--like-primary)]'}`} filled={isLiked} />
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onStartKaraoke(track); }}
+                                className="p-1 rounded-full hover:bg-[var(--bg-tertiary)]/50"
+                                title="Karaoke Mode"
+                            >
+                                <KaraokeIcon className="w-5 h-5 hover:text-[var(--accent-primary)]" />
                             </button>
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onShare(track); }}
