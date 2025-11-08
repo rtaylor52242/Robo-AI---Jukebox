@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Track } from '../types';
-import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon, LyricsIcon, SoundboardIcon, DjIcon } from './Icons';
+import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon, LyricsIcon, SoundboardIcon, DjIcon, KaraokeIcon } from './Icons';
 import EqPopover from './EqPopover';
 import SleepTimerPopover from './SleepTimerPopover';
 
@@ -28,6 +28,7 @@ interface PlayerControlsProps {
   sleepTimerRemaining: number | null;
   isSoundboardOpen: boolean;
   isDjModeOpen: boolean;
+  isKaraokeModeEnabled: boolean;
   allPresets: { [name: string]: number[] };
   userPresets: { [name: string]: number[] };
   onPlayPause: () => void;
@@ -53,6 +54,7 @@ interface PlayerControlsProps {
   onSetSleepTimer: (minutes: number) => void;
   onToggleSoundboard: () => void;
   onToggleDjMode: () => void;
+  onToggleKaraokeMode: () => void;
   onSaveEqPreset: (name: string) => void;
   onDeleteEqPreset: (name: string) => void;
 }
@@ -88,6 +90,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   sleepTimerRemaining,
   isSoundboardOpen,
   isDjModeOpen,
+  isKaraokeModeEnabled,
   allPresets,
   userPresets,
   onPlayPause,
@@ -113,6 +116,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onSetSleepTimer,
   onToggleSoundboard,
   onToggleDjMode,
+  onToggleKaraokeMode,
   onSaveEqPreset,
   onDeleteEqPreset,
 }) => {
@@ -195,6 +199,9 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
             <div className="flex items-center flex-wrap justify-center sm:justify-end gap-x-2 gap-y-2 relative">
                 <button onClick={onGenerateLyrics} title="Generate Lyrics" disabled={!currentTrack || isGeneratingLyrics} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
                     <LyricsIcon className="w-6 h-6"/>
+                </button>
+                 <button onClick={onToggleKaraokeMode} title="Karaoke Mode" disabled={trackSource !== 'local'} className={`transition p-1 rounded-full ${isKaraokeModeEnabled ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    <KaraokeIcon className="w-6 h-6"/>
                 </button>
                 <button onClick={onAnalyze} title="Analyze Song" disabled={!currentTrack || isAnalyzing || trackSource !== 'local'} className="transition p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed">
                     <AnalyzeIcon className="w-6 h-6"/>

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { CloseIcon } from './Icons';
 
@@ -45,12 +46,16 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                  <p><strong>Song Analysis (Local Files Only):</strong> Click the brain icon to use the Gemini AI to get a deep analysis of the current track's structure, musical elements, lyrics, and more. You can even get a prompt to regenerate a similar song!</p>
             </HelpSection>
             <HelpSection title="Karaoke Mode (Local Files Only)">
-                <p>Unleash your inner singer! Hover over any local track in your playlist and click the <strong>Karaoke</strong> (microphone) icon to start.</p>
+                <p>There are two ways to start a karaoke session:</p>
+                <ul className="list-disc list-inside pl-4 mb-2">
+                    <li><strong>Single Song:</strong> Hover over any local track in your playlist and click the <strong>Karaoke</strong> (microphone) icon.</li>
+                    <li><strong>Continuous Mode:</strong> In the main player controls, click the <strong>Karaoke Mode</strong> toggle button (microphone icon). When enabled, every local track you play will automatically open in Karaoke Mode.</li>
+                </ul>
+                <p>Once started, you have several controls:</p>
                 <ul className="list-disc list-inside pl-4">
                     <li><strong>Synced Lyrics:</strong> The AI will generate time-synchronized lyrics that highlight as the song plays, just like a real karaoke machine.</li>
-                    <li><strong>Vocal Reduction:</strong> Click the microphone icon with a slash through it on the karaoke screen to reduce the original artist's vocals, making it easier for you to take the lead!</li>
+                    <li><strong>Vocal Reduction:</strong> On the karaoke screen, click the microphone icon with a slash through it to reduce the original artist's vocals, making it easier for you to take the lead!</li>
                     <li><strong>Font Controls:</strong> Use the plus and minus buttons to adjust the lyric font size for perfect readability.</li>
-                    <li><strong>Continuous Play:</strong> Once you're in karaoke mode, it stays active! The next song will automatically load its lyrics and keep the session going.</li>
                 </ul>
             </HelpSection>
             <HelpSection title="Soundboard">
@@ -59,6 +64,17 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                     <li><strong>Play:</strong> Simply click any pad to play its sound effect over your music.</li>
                     <li><strong>Navigate:</strong> Use the "Next" and "Previous" buttons in the soundboard header to switch between the 9 sheets.</li>
                     <li><strong>Customize:</strong> Toggle the "Edit" switch in the header. In edit mode, you can click on any pad to change its name and upload your own local audio file as a new sound effect. All your changes are saved automatically.</li>
+                </ul>
+            </HelpSection>
+            <HelpSection title="DJ Mode (Local Files Only)">
+                <p>Click the DJ icon in the player controls to open a professional two-deck mixing interface. Here's how to use it:</p>
+                <ul className="list-disc list-inside pl-4">
+                    <li><strong>Loading Tracks:</strong> Click "Load Track L" or "Load Track R" to open your library and select a song for each deck. The app will analyze the track and generate a colored waveform.</li>
+                    <li><strong>Dual Waveform Display:</strong> At the top, you'll see both tracks' waveforms running in parallel. They are color-coded by frequency (Pink for bass, Cyan for mids, Yellow for highs) to help you visually plan your transitions.</li>
+                    <li><strong>Playback:</strong> Each deck has its own Play/Pause button, a CUE button to return to the start, and a vertical Pitch slider to adjust the track's speed (BPM).</li>
+                    <li><strong>Mixing:</strong> Use the horizontal <strong>Crossfader</strong> at the bottom to blend between Deck L and Deck R. For a perfect transition, click the <strong>Auto Mix</strong> button to have the crossfader glide automatically over 8 seconds.</li>
+                    <li><strong>Recording:</strong> Click the red <strong>Record</strong> button to start recording your entire mix. Click it again to stop, and your session will be saved as an audio file to your computer.</li>
+                    <li><strong>Window Controls:</strong> Use the header buttons to <strong>Minimize</strong> the DJ interface to a compact player, <strong>Maximize</strong> it back to full view, or <strong>Close</strong> it entirely.</li>
                 </ul>
             </HelpSection>
             <HelpSection title="Advanced Controls">

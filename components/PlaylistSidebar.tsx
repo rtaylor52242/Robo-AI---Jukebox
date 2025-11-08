@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import type { Playlist } from '../types';
 import { PlusIcon, SpotifyIcon } from './Icons';
@@ -14,6 +12,8 @@ interface PlaylistSidebarProps {
   isSpotifyConnected: boolean;
   spotifyPlaylists: any[];
   onSelectSpotifyPlaylist: (id: string) => void;
+  width: number;
+  onResizeStart: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({ 
@@ -25,7 +25,9 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
     onLibrarySourceChange,
     isSpotifyConnected,
     spotifyPlaylists,
-    onSelectSpotifyPlaylist
+    onSelectSpotifyPlaylist,
+    width,
+    onResizeStart
 }) => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -42,7 +44,10 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
   const userPlaylists = playlists.filter(p => !p.system);
 
   return (
-    <aside className="w-64 bg-[var(--bg-secondary)]/30 p-4 flex-shrink-0 flex flex-col border-r border-[var(--border-primary)]">
+    <aside 
+      className="bg-[var(--bg-secondary)]/30 p-4 flex-shrink-0 flex flex-col border-r border-[var(--border-primary)] relative"
+      style={{ width: `${width}px` }}
+    >
       
       {isSpotifyConnected && (
         <div className="flex-shrink-0 mb-4 p-1 bg-[var(--bg-tertiary)]/50 rounded-lg flex items-center">
@@ -166,6 +171,13 @@ const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
             </ul>
         </div>
       )}
+      <div
+        onMouseDown={onResizeStart}
+        className="absolute top-0 right-0 h-full w-2 cursor-col-resize group"
+        title="Resize sidebar"
+      >
+        <div className="w-0.5 h-full bg-transparent group-hover:bg-[var(--accent-primary)]/50 transition-colors duration-200 mx-auto"></div>
+      </div>
     </aside>
   );
 };

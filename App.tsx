@@ -43,6 +43,10 @@ const DEFAULT_PLAYLIST_NAMES = [ 'Afrobeat', 'Birthday Songs', 'Classical', 'Dis
 type Theme = 'robotic' | 'modern' | 'sunset' | 'forest' | 'ocean' | 'cyberpunk' | 'monochrome';
 const THEMES: Theme[] = ['robotic', 'modern', 'sunset', 'forest', 'ocean', 'cyberpunk', 'monochrome'];
 
+const MIN_SIDEBAR_WIDTH = 200;
+const MAX_SIDEBAR_WIDTH = 600;
+const DEFAULT_SIDEBAR_WIDTH = 256;
+
 const App: React.FC = () => {
   // --- Core State ---
   const [allTracks, setAllTracks] = useState<Track[]>([]);
@@ -63,6 +67,12 @@ const App: React.FC = () => {
   const [timeDisplayMode, setTimeDisplayMode] = useState<'elapsed' | 'remaining'>('elapsed');
   const [theme, setTheme] = useState<Theme>('robotic');
   const [librarySource, setLibrarySource] = useState<'local' | 'spotify'>('local');
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const savedWidth = localStorage.getItem('sidebar-width');
+    const width = savedWidth ? parseInt(savedWidth, 10) : DEFAULT_SIDEBAR_WIDTH;
+    return Math.max(MIN_SIDEBAR_WIDTH, Math.min(width, MAX_SIDEBAR_WIDTH));
+  });
+  const [isResizing, setIsResizing] = useState(false);
   
   // --- Playlist State ---
   const [playlists, setPlaylists] = useState<PlaylistType[]>([]);
@@ -91,6 +101,7 @@ const App: React.FC = () => {
   const [isKaraokeModalOpen, setIsKaraokeModalOpen] = useState(false);
   const [karaokeLyrics, setKaraokeLyrics] = useState<string | null>(null);
   const [isVocalReductionOn, setIsVocalReductionOn] = useState(false);
+  const [isKaraokeModeEnabled, setIsKaraokeModeEnabled] = useState(false);
 
   // --- Metadata & Stats State ---
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {}, lyrics: {} });
@@ -375,7 +386,7 @@ const App: React.FC = () => {
   // Player Event Handlers
   const handleTimeUpdate = () => { if (audioRef.current) { const { currentTime, duration } = audioRef.current; setCurrentTime(currentTime); if(duration) setProgress((currentTime / duration) * 100); } };
   const handleLoadedMetadata = () => { if (audioRef.current) { setDuration(audioRef.current.duration); setAllTracks(tracks => tracks.map(t => t.url === currentTrack?.url ? {...t, duration: audioRef.current!.duration} : t)); } };
-  const handleEnded = () => { if (isRepeat && audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play(); } else { playNext(); } };
+  const handleEnded = () => { if (isRepeat && audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(console.error); } else { playNext(); } };
   const handleCanPlayThrough = () => { if (loadingTrackUrl) setLoadingTrackUrl(null); };
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => { if (!currentTrack) return; const newProgress = e.nativeEvent.offsetX / e.currentTarget.offsetWidth; const newTime = newProgress * duration; if (currentTrack.source === 'local' && audioRef.current) audioRef.current.currentTime = newTime; if (currentTrack.source === 'spotify' && spotifyPlayer) spotifyPlayer.seek(newTime * 1000); };
 
@@ -462,7 +473,7 @@ const App: React.FC = () => {
     finally { setIsAnalyzing(false); }
   };
   
-  const handleStartKaraoke = async (track: Track) => {
+  const handleStartKaraoke = useCallback(async (track: Track) => {
     // Set UI state and prepare the track without playing it yet
     setKaraokeLyrics(null);
     setIsKaraokeModalOpen(true);
@@ -498,7 +509,8 @@ const App: React.FC = () => {
     if (lyrics && !lyrics.startsWith("Could not generate")) {
       setTimeout(() => setIsPlaying(true), 100);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackMetadata.lyrics]);
 
 
   const handleLikeToggle = async (trackUrl: string) => { const newMetadata: TrackMetadata = { ...trackMetadata, likes: { ...trackMetadata.likes, [trackUrl]: !trackMetadata.likes[trackUrl] } }; setTrackMetadata(newMetadata); await saveTrackMetadata(newMetadata); };
@@ -584,6 +596,8 @@ const App: React.FC = () => {
     setIsDjModeOpen(prev => !prev);
   };
 
+  const handleToggleKaraokeMode = () => setIsKaraokeModeEnabled(prev => !prev);
+
   const handleToggleDjModeMinimize = () => {
     setIsDjModeMinimized(prev => !prev);
   };
@@ -631,9 +645,45 @@ const App: React.FC = () => {
         await saveSoundboardSheets(newSheets);
     }
   };
+  
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const handleResize = useCallback((e: MouseEvent) => {
+      const newWidth = e.clientX;
+      const clampedWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(newWidth, MAX_SIDEBAR_WIDTH));
+      setSidebarWidth(clampedWidth);
+  }, []);
+
+  const handleResizeEnd = useCallback(() => {
+      setIsResizing(false);
+  }, []);
 
   // --- Effects ---
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
+
+  // Handle sidebar resizing
+  useEffect(() => {
+      if (isResizing) {
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+          window.addEventListener('mousemove', handleResize);
+          window.addEventListener('mouseup', handleResizeEnd);
+      }
+      return () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', handleResize);
+          window.removeEventListener('mouseup', handleResizeEnd);
+      };
+  }, [isResizing, handleResize, handleResizeEnd]);
+
+  // Save sidebar width to local storage
+  useEffect(() => {
+    localStorage.setItem('sidebar-width', sidebarWidth.toString());
+  }, [sidebarWidth]);
 
   // Handle Vocal Reduction EQ
   useEffect(() => {
@@ -843,7 +893,27 @@ const App: React.FC = () => {
             audio.addEventListener('canplay', playAudio, { once: true });
         } else { playAudio(); }
     } else { audio.pause(); }
+
+    const cleanup = () => {
+        if(audio) {
+            audio.removeEventListener('canplay', playAudio);
+        }
+    };
+    return cleanup;
   }, [currentTrack, isPlaying]);
+  
+  // Auto-start Karaoke when mode is enabled
+  useEffect(() => {
+    if (isKaraokeModeEnabled && currentTrack && currentTrack.source === 'local' && currentTrack.file) {
+      // This will only trigger for new tracks when the mode is on, or when the mode is turned on for the current track.
+      // A small delay allows other UI updates to settle before opening the modal.
+      const timer = setTimeout(() => {
+        handleStartKaraoke(currentTrack);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack?.url, isKaraokeModeEnabled]);
 
   // Stat tracking effect
   useEffect(() => {
@@ -940,6 +1010,8 @@ const App: React.FC = () => {
             isSpotifyConnected={!!spotifyToken}
             spotifyPlaylists={spotifyPlaylists}
             onSelectSpotifyPlaylist={handleSelectSpotifyPlaylist}
+            width={sidebarWidth}
+            onResizeStart={handleResizeStart}
         />
         <main className="flex-grow overflow-hidden flex flex-col">
             <Playlist
@@ -981,6 +1053,7 @@ const App: React.FC = () => {
         sleepTimerRemaining={sleepTimerRemaining}
         isSoundboardOpen={isSoundboardOpen}
         isDjModeOpen={isDjModeOpen}
+        isKaraokeModeEnabled={isKaraokeModeEnabled}
         onPlayPause={handlePlayPause} onNext={playNext} onPrev={playPrev}
         onShuffleToggle={() => setIsShuffle(!isShuffle)} onRepeatToggle={() => setIsRepeat(!isRepeat)}
         onSeek={handleSeek} onAddSongsClick={() => fileInputRef.current?.click()}
@@ -1007,6 +1080,7 @@ const App: React.FC = () => {
         }}
         onToggleSoundboard={() => setIsSoundboardOpen(prev => !prev)}
         onToggleDjMode={handleToggleDjMode}
+        onToggleKaraokeMode={handleToggleKaraokeMode}
         allPresets={combinedEqPresets}
         userPresets={userEqPresets}
         onSaveEqPreset={handleSaveEqPreset}
