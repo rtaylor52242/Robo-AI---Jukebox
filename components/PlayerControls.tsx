@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Track } from '../types';
-import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon, LyricsIcon, SoundboardIcon } from './Icons';
+import { PlayIcon, PauseIcon, NextIcon, PrevIcon, ShuffleIcon, RepeatIcon, FolderMusicIcon, VolumeUpIcon, VolumeDownIcon, SpinnerIcon, EqIcon, AnalyzeIcon, SleepTimerIcon, LyricsIcon, SoundboardIcon, DjIcon } from './Icons';
 import EqPopover from './EqPopover';
 import SleepTimerPopover from './SleepTimerPopover';
 
@@ -27,6 +27,7 @@ interface PlayerControlsProps {
   isSleepTimerPopoverOpen: boolean;
   sleepTimerRemaining: number | null;
   isSoundboardOpen: boolean;
+  isDjModeOpen: boolean;
   allPresets: { [name: string]: number[] };
   userPresets: { [name: string]: number[] };
   onPlayPause: () => void;
@@ -51,6 +52,7 @@ interface PlayerControlsProps {
   onToggleSleepTimerPopover: () => void;
   onSetSleepTimer: (minutes: number) => void;
   onToggleSoundboard: () => void;
+  onToggleDjMode: () => void;
   onSaveEqPreset: (name: string) => void;
   onDeleteEqPreset: (name: string) => void;
 }
@@ -85,6 +87,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   isSleepTimerPopoverOpen,
   sleepTimerRemaining,
   isSoundboardOpen,
+  isDjModeOpen,
   allPresets,
   userPresets,
   onPlayPause,
@@ -109,6 +112,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onToggleSleepTimerPopover,
   onSetSleepTimer,
   onToggleSoundboard,
+  onToggleDjMode,
   onSaveEqPreset,
   onDeleteEqPreset,
 }) => {
@@ -200,6 +204,9 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                 </button>
                 <button onClick={onToggleSoundboard} title="Soundboard" className={`transition p-1 rounded-full ${isSoundboardOpen ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}>
                     <SoundboardIcon className="w-6 h-6"/>
+                </button>
+                <button onClick={onToggleDjMode} title="DJ Mode" disabled={playlistSize === 0} className={`transition p-1 rounded-full ${isDjModeOpen ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    <DjIcon className="w-6 h-6"/>
                 </button>
                 <button 
                     onClick={onToggleSleepTimerPopover} 

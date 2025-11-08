@@ -200,13 +200,13 @@ export const UserIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
 
 export const SoundboardIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 5V3m0 18v-2M8 8.995a1 1 0 100-2 1 1 0 000 2zM12 8.995a1 1 0 100-2 1 1 0 000 2zM16 8.995a1 1 0 100-2 1 1 0 000 2zM8 12.995a1 1 0 100-2 1 1 0 000 2zM12 12.995a1 1 0 100-2 1 1 0 000 2zM16 12.995a1 1 0 100-2 1 1 0 000 2zM8 16.995a1 1 0 100-2 1 1 0 000 2zM12 16.995a1 1 0 100-2 1 1 0 000 2zM16 16.995a1 1 0 100-2 1 1 0 000 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 5V3m0 18v-2M8 8.995a1 1 0 100-2 1 1 0 000 2zM12 8.995a1 1 0 100-2 1 1 0 000 2zM16 8.995a1 1 0 100-2 1 1 0 000 2zM8 12.995a1 1 0 100-2 1 1 0 000 2zM12 12.995a1 1 0 100-2 1 1 0 000 2zM16 12.995a1 1 0 100-2 1 1 0 000 2zM8 16.995a1 1 0 100-2 1 1 0 000 2zM12 16.995a1 1 0 100-2 1 1 0 000 2zM16 16.995a1 1 0 100-2 1 1 0 000 2z" />
     </svg>
 );
 
 export const UploadIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
     </svg>
 );
 
@@ -220,5 +220,38 @@ export const VocalSlashIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) =
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3l18 18" />
+    </svg>
+);
+
+export const DjIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 8h4v8h-4V8zM4 8h4v8H4V8z"></path>
+        <circle cx="18" cy="12" r="2" strokeWidth="1.5"></circle>
+        <circle cx="6" cy="12" r="2" strokeWidth="1.5"></circle>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 14v2m12-2v2M8 12h8"></path>
+    </svg>
+);
+
+export const MinimizeIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+    </svg>
+);
+
+export const MaximizeIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4h4m12 4V4h-4M4 16v4h4m12-4v4h-4" />
+    </svg>
+);
+
+export const AutoMixIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 3h5v5M4 20L20 4M20 16v5h-5M4 4l5 5" />
+    </svg>
+);
+
+export const RecordIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="8" />
     </svg>
 );

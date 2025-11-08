@@ -14,6 +14,7 @@ import ShortcutsModal from './components/ShortcutsModal';
 import HelpModal from './components/HelpModal';
 import ProfileModal from './components/ProfileModal';
 import Soundboard from './components/Soundboard';
+import DJMode from './components/DJMode';
 import { DEFAULT_SOUNDBOARD_SHEETS } from './components/SoundboardSamples';
 import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats, getUserEqPresets, saveUserEqPresets, getSoundboardSheets, saveSoundboardSheets } from './db';
 import { ShortcutsIcon, HelpIcon, ThemeIcon, SpotifyIcon, UserIcon } from './components/Icons';
@@ -104,6 +105,8 @@ const App: React.FC = () => {
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSoundboardOpen, setIsSoundboardOpen] = useState(false);
+  const [isDjModeOpen, setIsDjModeOpen] = useState(false);
+  const [isDjModeMinimized, setIsDjModeMinimized] = useState(false);
 
   // --- Soundboard State ---
   const [soundboardSheets, setSoundboardSheets] = useState<SoundboardSheetData>({});
@@ -570,6 +573,21 @@ const App: React.FC = () => {
 
   const handleToggleVocalReduction = () => setIsVocalReductionOn(prev => !prev);
   
+  const handleToggleDjMode = () => {
+    if (!isDjModeOpen) {
+        // When opening DJ mode, pause the main player
+        setIsPlaying(false);
+    } else {
+        // When closing, also reset minimized state
+        setIsDjModeMinimized(false);
+    }
+    setIsDjModeOpen(prev => !prev);
+  };
+
+  const handleToggleDjModeMinimize = () => {
+    setIsDjModeMinimized(prev => !prev);
+  };
+
   const handleProfileTrackSelect = (trackUrl: string) => {
     const trackToPlay = allTracks.find(t => t.url === trackUrl);
     if (trackToPlay) {
@@ -962,6 +980,7 @@ const App: React.FC = () => {
         isSleepTimerPopoverOpen={isSleepTimerPopoverOpen}
         sleepTimerRemaining={sleepTimerRemaining}
         isSoundboardOpen={isSoundboardOpen}
+        isDjModeOpen={isDjModeOpen}
         onPlayPause={handlePlayPause} onNext={playNext} onPrev={playPrev}
         onShuffleToggle={() => setIsShuffle(!isShuffle)} onRepeatToggle={() => setIsRepeat(!isRepeat)}
         onSeek={handleSeek} onAddSongsClick={() => fileInputRef.current?.click()}
@@ -987,6 +1006,7 @@ const App: React.FC = () => {
           setSleepTimerId(newTimerId);
         }}
         onToggleSoundboard={() => setIsSoundboardOpen(prev => !prev)}
+        onToggleDjMode={handleToggleDjMode}
         allPresets={combinedEqPresets}
         userPresets={userEqPresets}
         onSaveEqPreset={handleSaveEqPreset}
@@ -1041,6 +1061,15 @@ const App: React.FC = () => {
         duration={duration}
         isVocalReductionOn={isVocalReductionOn}
         onToggleVocalReduction={handleToggleVocalReduction}
+      />
+      <DJMode
+        isOpen={isDjModeOpen}
+        isMinimized={isDjModeMinimized}
+        onClose={handleToggleDjMode}
+        onToggleMinimize={handleToggleDjModeMinimize}
+        tracks={allTracks}
+        volume={volume}
+        currentTrack={currentTrack}
       />
     </div>
   );

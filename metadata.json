@@ -1,5 +1,5 @@
 {
-  "name": "Robo AI - Jukebox",
+  "name": "Robo AI - DJ Jukebox",
   "description": "A futuristic jukebox that plays local audio files. Select a folder from your computer to generate a playlist and enjoy your music with a sleek, robotic-themed interface and standard playback controls.",
   "requestFramePermissions": []
 }
