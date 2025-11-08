@@ -44,6 +44,15 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                  <p><strong>Generate Lyrics:</strong> Click the lyrics icon in the player controls. For local files, the AI will listen to the audio and transcribe it. For Spotify tracks, it will look up the lyrics. Generated lyrics for local tracks are automatically saved—the next time you open them, they'll load instantly. Use the <strong>Regenerate</strong> button if you want a new version, or the <strong>Share</strong> button to send the lyrics to others.</p>
                  <p><strong>Song Analysis (Local Files Only):</strong> Click the brain icon to use the Gemini AI to get a deep analysis of the current track's structure, musical elements, lyrics, and more. You can even get a prompt to regenerate a similar song!</p>
             </HelpSection>
+            <HelpSection title="Karaoke Mode (Local Files Only)">
+                <p>Unleash your inner singer! Hover over any local track in your playlist and click the <strong>Karaoke</strong> (microphone) icon to start.</p>
+                <ul className="list-disc list-inside pl-4">
+                    <li><strong>Synced Lyrics:</strong> The AI will generate time-synchronized lyrics that highlight as the song plays, just like a real karaoke machine.</li>
+                    <li><strong>Vocal Reduction:</strong> Click the microphone icon with a slash through it on the karaoke screen to reduce the original artist's vocals, making it easier for you to take the lead!</li>
+                    <li><strong>Font Controls:</strong> Use the plus and minus buttons to adjust the lyric font size for perfect readability.</li>
+                    <li><strong>Continuous Play:</strong> Once you're in karaoke mode, it stays active! The next song will automatically load its lyrics and keep the session going.</li>
+                </ul>
+            </HelpSection>
             <HelpSection title="Soundboard">
                 <p>Click the soundboard icon in the player controls to open a <strong>144-pad soundboard</strong> spread across 9 sheets.</p>
                  <ul className="list-disc list-inside pl-4">

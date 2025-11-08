@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CloseIcon, PlusIcon, MinusIcon } from './Icons';
+import { CloseIcon, PlusIcon, MinusIcon, KaraokeIcon, VocalSlashIcon } from './Icons';
 
 interface KaraokeModalProps {
   isOpen: boolean;
@@ -8,6 +8,8 @@ interface KaraokeModalProps {
   trackName: string | null;
   currentTime: number;
   duration: number;
+  isVocalReductionOn: boolean;
+  onToggleVocalReduction: () => void;
 }
 
 type LyricLine = {
@@ -15,7 +17,7 @@ type LyricLine = {
   text: string;
 };
 
-const KaraokeModal: React.FC<KaraokeModalProps> = ({ isOpen, onClose, lyrics, trackName, currentTime, duration }) => {
+const KaraokeModal: React.FC<KaraokeModalProps> = ({ isOpen, onClose, lyrics, trackName, currentTime, duration, isVocalReductionOn, onToggleVocalReduction }) => {
   const [lines, setLines] = useState<LyricLine[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState(-1);
   const [fontSize, setFontSize] = useState(4);
@@ -97,6 +99,9 @@ const KaraokeModal: React.FC<KaraokeModalProps> = ({ isOpen, onClose, lyrics, tr
         </button>
 
         <div className="absolute bottom-4 right-4 flex items-center space-x-2 bg-white/10 p-2 rounded-lg z-20 backdrop-blur-sm">
+            <button onClick={(e) => { e.stopPropagation(); onToggleVocalReduction(); }} title={isVocalReductionOn ? "Enable Vocals" : "Reduce Vocals"} className="text-white p-2 rounded-md hover:bg-white/20 transition">
+              {isVocalReductionOn ? <VocalSlashIcon className="w-6 h-6" /> : <KaraokeIcon className="w-6 h-6" />}
+            </button>
             <button onClick={decreaseFont} title="Decrease font size" className="text-white p-2 rounded-md hover:bg-white/20 transition">
                 <MinusIcon className="w-6 h-6" />
             </button>

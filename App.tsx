@@ -89,6 +89,7 @@ const App: React.FC = () => {
   // --- Karaoke State ---
   const [isKaraokeModalOpen, setIsKaraokeModalOpen] = useState(false);
   const [karaokeLyrics, setKaraokeLyrics] = useState<string | null>(null);
+  const [isVocalReductionOn, setIsVocalReductionOn] = useState(false);
 
   // --- Metadata & Stats State ---
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata>({ likes: {}, ratings: {}, analysis: {}, lyrics: {} });
@@ -133,6 +134,7 @@ const App: React.FC = () => {
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
   const pannerNodeRef = useRef<StereoPannerNode | null>(null);
   const bassBoostNodeRef = useRef<BiquadFilterNode | null>(null);
+  const vocalReducerNodeRef = useRef<BiquadFilterNode | null>(null);
   const currentTrackRef = useRef<Track | null>(null);
   const audioPoolRef = useRef<HTMLAudioElement[]>([]);
   const audioPoolIndexRef = useRef(0);
@@ -212,12 +214,19 @@ const App: React.FC = () => {
             return filter;
         });
         
+        const vocalReducerNode = context.createBiquadFilter();
+        vocalReducerNode.type = 'peaking';
+        vocalReducerNode.frequency.value = 2500; // Center frequency for vocals
+        vocalReducerNode.Q.value = 1.2; // Widen the filter slightly to catch more vocal tones
+        vocalReducerNode.gain.value = 0; // Off by default
+
         const panner = context.createStereoPanner();
         panner.pan.value = 0;
 
         let lastNode: AudioNode = source;
         lastNode = lastNode.connect(bassBoostFilter);
         eqNodes.forEach(node => { lastNode = lastNode.connect(node); });
+        lastNode = lastNode.connect(vocalReducerNode);
         lastNode = lastNode.connect(panner);
         lastNode.connect(context.destination);
         
@@ -225,6 +234,7 @@ const App: React.FC = () => {
         sourceNodeRef.current = source; 
         bassBoostNodeRef.current = bassBoostFilter;
         eqNodesRef.current = eqNodes;
+        vocalReducerNodeRef.current = vocalReducerNode;
         pannerNodeRef.current = panner;
 
     } catch (error) { console.error("Failed to initialize Web Audio API:", error); }
@@ -557,6 +567,8 @@ const App: React.FC = () => {
         return newState;
     });
   };
+
+  const handleToggleVocalReduction = () => setIsVocalReductionOn(prev => !prev);
   
   const handleProfileTrackSelect = (trackUrl: string) => {
     const trackToPlay = allTracks.find(t => t.url === trackUrl);
@@ -604,6 +616,17 @@ const App: React.FC = () => {
 
   // --- Effects ---
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
+
+  // Handle Vocal Reduction EQ
+  useEffect(() => {
+    if (vocalReducerNodeRef.current) {
+        if (audioContextRef.current?.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+        // Increased reduction to -40dB, the maximum for this filter type, for a stronger effect.
+        vocalReducerNodeRef.current.gain.value = isVocalReductionOn ? -40 : 0;
+    }
+  }, [isVocalReductionOn]);
 
   // Load theme & data on initial mount
   useEffect(() => {
@@ -1008,11 +1031,16 @@ const App: React.FC = () => {
       />
        <KaraokeModal
         isOpen={isKaraokeModalOpen}
-        onClose={() => setIsKaraokeModalOpen(false)}
+        onClose={() => {
+          setIsKaraokeModalOpen(false);
+          setIsVocalReductionOn(false); // Reset on close
+        }}
         lyrics={karaokeLyrics}
         trackName={currentTrack?.name ?? null}
         currentTime={currentTime}
         duration={duration}
+        isVocalReductionOn={isVocalReductionOn}
+        onToggleVocalReduction={handleToggleVocalReduction}
       />
     </div>
   );
