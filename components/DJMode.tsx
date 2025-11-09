@@ -159,6 +159,29 @@ const DualWaveformDisplay: React.FC<{
     );
 });
 
+const PitchSlider: React.FC<{ value: number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; }> = ({ value, onChange }) => (
+    <div className="flex flex-col items-center justify-center gap-3">
+        <div className="relative w-4 h-32 flex items-center justify-center">
+            <div className="absolute w-1 h-full bg-[var(--bg-tertiary)] rounded-full">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-px bg-[var(--text-muted)]"></div>
+                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-[var(--text-primary)] rounded-full"></div>
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-px bg-[var(--text-muted)]"></div>
+            </div>
+            <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.01"
+                value={value}
+                onChange={onChange}
+                className="w-32 h-2 appearance-none bg-transparent cursor-pointer -rotate-90"
+                style={{ accentColor: 'var(--accent-primary)' }}
+            />
+        </div>
+        <label className="text-xs font-semibold tracking-widest text-[var(--text-muted)]">PITCH</label>
+    </div>
+);
+
 
 // A simple turntable visual component
 const Turntable: React.FC<{ isPlaying: boolean; track: Track | null }> = ({ isPlaying, track }) => (
@@ -343,11 +366,27 @@ const DJMode: React.FC<DJModeProps> = ({ isOpen, isMinimized, onClose, onToggleM
     }, []);
     
     useEffect(() => {
-        isPlayingL ? audioRefL.current?.play().catch(console.error) : audioRefL.current?.pause();
+        const audio = audioRefL.current;
+        if (!audio) return;
+        if (isPlayingL) {
+            audio.play().catch(e => {
+                if ((e as DOMException).name !== 'AbortError') console.error("Deck L playback error:", e);
+            });
+        } else {
+            audio.pause();
+        }
     }, [isPlayingL]);
-    
+
     useEffect(() => {
-        isPlayingR ? audioRefR.current?.play().catch(console.error) : audioRefR.current?.pause();
+        const audio = audioRefR.current;
+        if (!audio) return;
+        if (isPlayingR) {
+            audio.play().catch(e => {
+                if ((e as DOMException).name !== 'AbortError') console.error("Deck R playback error:", e);
+            });
+        } else {
+            audio.pause();
+        }
     }, [isPlayingR]);
 
     useEffect(() => { if(audioRefL.current) audioRefL.current.playbackRate = pitchL; }, [pitchL]);
@@ -537,8 +576,8 @@ const DJMode: React.FC<DJModeProps> = ({ isOpen, isMinimized, onClose, onToggleM
                         </div>
                     </>
                 ) : (
-                    <div className="w-full h-full flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-                        <div className="flex-shrink-0 flex justify-between items-center">
+                    <div className="w-full h-full grid grid-rows-[auto_10rem_auto_1fr_auto] gap-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center">
                             <h2 className="text-2xl font-bold text-[var(--accent-primary)]" style={{fontFamily: 'var(--font-family)'}}>DJ MODE</h2>
                             <div className="flex items-center">
                                 <button onClick={onToggleMinimize} title="Minimize" className="p-2 rounded-full hover:bg-white/10 transition"><MinimizeIcon className="w-8 h-8"/></button>
@@ -546,23 +585,24 @@ const DJMode: React.FC<DJModeProps> = ({ isOpen, isMinimized, onClose, onToggleM
                             </div>
                         </div>
                         
-                        <div className="h-40 flex-shrink-0">
+                        <div>
                            <DualWaveformDisplay 
                                 analysisL={analysisL} isAnalyzingL={isAnalyzingL} currentTimeL={currentTimeL}
                                 analysisR={analysisR} isAnalyzingR={isAnalyzingR} currentTimeR={currentTimeR}
                            />
                         </div>
 
-                        <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 overflow-auto">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            <button onClick={() => setIsTrackSelectorOpenFor('L')} className="w-full bg-[var(--bg-tertiary)] py-3 rounded-md hover:bg-[var(--bg-tertiary)]/70 transition truncate px-4 text-lg">{trackL?.name || 'Load Track L'}</button>
+                            <button onClick={() => setIsTrackSelectorOpenFor('R')} className="w-full bg-[var(--bg-tertiary)] py-3 rounded-md hover:bg-[var(--bg-tertiary)]/70 transition truncate px-4 text-lg">{trackR?.name || 'Load Track R'}</button>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 overflow-auto min-h-0">
                             {/* DECK L */}
-                            <div className="bg-zinc-900 rounded-lg p-4 flex flex-col items-center justify-between gap-4">
-                                <button onClick={() => setIsTrackSelectorOpenFor('L')} className="w-full bg-[var(--bg-tertiary)] py-2 rounded-md hover:bg-[var(--bg-tertiary)]/70 transition truncate px-4">{trackL?.name || 'Load Track L'}</button>
+                            <div className="bg-zinc-900 rounded-lg p-4 flex flex-col items-center justify-around gap-4">
                                 <Turntable isPlaying={isPlayingL} track={trackL} />
                                 <div className="w-full flex items-center justify-around gap-4">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <input type="range" min="0.5" max="1.5" step="0.01" value={pitchL} onChange={e => setPitchL(Number(e.target.value))} className="w-24 h-1.5 appearance-none rounded-full bg-[var(--bg-tertiary)] cursor-pointer -rotate-90 origin-bottom-center" />
-                                        <label className="text-xs">PITCH</label>
-                                    </div>
+                                    <PitchSlider value={pitchL} onChange={e => setPitchL(Number(e.target.value))} />
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => handleCue('L')} disabled={!trackL} className="bg-yellow-500 text-black font-bold rounded-md px-4 py-2 disabled:opacity-50">CUE</button>
                                         <button onClick={() => playPause('L')} disabled={!trackL} className="w-16 h-16 rounded-full bg-[var(--accent-primary)] text-black flex items-center justify-center disabled:bg-gray-600">
@@ -573,14 +613,10 @@ const DJMode: React.FC<DJModeProps> = ({ isOpen, isMinimized, onClose, onToggleM
                             </div>
 
                             {/* DECK R */}
-                            <div className="bg-zinc-900 rounded-lg p-4 flex flex-col items-center justify-between gap-4">
-                                <button onClick={() => setIsTrackSelectorOpenFor('R')} className="w-full bg-[var(--bg-tertiary)] py-2 rounded-md hover:bg-[var(--bg-tertiary)]/70 transition truncate px-4">{trackR?.name || 'Load Track R'}</button>
+                            <div className="bg-zinc-900 rounded-lg p-4 flex flex-col items-center justify-around gap-4">
                                 <Turntable isPlaying={isPlayingR} track={trackR} />
                                 <div className="w-full flex items-center justify-around gap-4">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <input type="range" min="0.5" max="1.5" step="0.01" value={pitchR} onChange={e => setPitchR(Number(e.target.value))} className="w-24 h-1.5 appearance-none rounded-full bg-[var(--bg-tertiary)] cursor-pointer -rotate-90 origin-bottom-center" />
-                                        <label className="text-xs">PITCH</label>
-                                    </div>
+                                    <PitchSlider value={pitchR} onChange={e => setPitchR(Number(e.target.value))} />
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => handleCue('R')} disabled={!trackR} className="bg-yellow-500 text-black font-bold rounded-md px-4 py-2 disabled:opacity-50">CUE</button>
                                         <button onClick={() => playPause('R')} disabled={!trackR} className="w-16 h-16 rounded-full bg-[var(--accent-primary)] text-black flex items-center justify-center disabled:bg-gray-600">
@@ -591,7 +627,7 @@ const DJMode: React.FC<DJModeProps> = ({ isOpen, isMinimized, onClose, onToggleM
                             </div>
                         </div>
 
-                        <div className="flex-shrink-0 pt-4">
+                        <div className="pt-4">
                             <div className="flex items-center gap-4">
                                 <span className="font-bold">L</span>
                                 <input type="range" min="-1" max="1" step="0.01" value={crossfade} onChange={e => setCrossfade(Number(e.target.value))} disabled={isAutoMixing} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer disabled:opacity-50" />
