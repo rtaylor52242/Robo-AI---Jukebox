@@ -93,7 +93,7 @@ const KaraokeModal: React.FC<KaraokeModalProps> = ({ isOpen, onClose, lyrics, tr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-50 p-4 animate-fade-in-up" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-50 p-4 animate-fade-in-up">
         <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-yellow-300 transition rounded-full p-2 bg-white/10 hover:bg-white/20 z-20">
             <CloseIcon className="w-8 h-8" />
         </button>

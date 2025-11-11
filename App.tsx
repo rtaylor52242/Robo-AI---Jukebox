@@ -15,6 +15,7 @@ import HelpModal from './components/HelpModal';
 import ProfileModal from './components/ProfileModal';
 import Soundboard from './components/Soundboard';
 import DJMode from './components/DJMode';
+import LyricsSourceModal from './components/LyricsSourceModal';
 import { DEFAULT_SOUNDBOARD_SHEETS } from './components/SoundboardSamples';
 import { clearAllData, getTrackMetadata, saveTrackMetadata, getAllPlaylists, savePlaylists, getStats, saveStats, resetStats, getUserEqPresets, saveUserEqPresets, getSoundboardSheets, saveSoundboardSheets } from './db';
 import { ShortcutsIcon, HelpIcon, ThemeIcon, SpotifyIcon, UserIcon } from './components/Icons';
@@ -96,6 +97,7 @@ const App: React.FC = () => {
   const [isLyricsModalOpen, setIsLyricsModalOpen] = useState(false);
   const [lyricsResult, setLyricsResult] = useState<string | null>(null);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [isLyricsSourceModalOpen, setIsLyricsSourceModalOpen] = useState(false);
   
   // --- Karaoke State ---
   const [isKaraokeModalOpen, setIsKaraokeModalOpen] = useState(false);
@@ -399,7 +401,7 @@ const App: React.FC = () => {
     setIsClearConfirmOpen(false);
   };
   
-  const handleGenerateLyrics = async (forceRegenerate = false) => {
+  const handleAIGenerateLyrics = async (forceRegenerate = false) => {
     if (!currentTrack) return;
 
     if (!forceRegenerate && trackMetadata.lyrics?.[currentTrack.url]) {
@@ -452,6 +454,36 @@ const App: React.FC = () => {
         setLyricsResult("Could not generate lyrics. An error occurred while communicating with the AI, or this feature is not supported for the current track.");
     } finally {
         setIsGeneratingLyrics(false);
+    }
+  };
+
+  const handleGenerateLyrics = () => {
+    if (!currentTrack) return;
+    if (currentTrack.source === 'spotify') {
+        handleAIGenerateLyrics();
+        return;
+    }
+    setIsLyricsSourceModalOpen(true);
+  };
+
+  const handleLyricsSourceSelected = async (source: 'ai' | 'upload' | 'paste', content?: string) => {
+    setIsLyricsSourceModalOpen(false);
+    if (!currentTrack) return;
+
+    if (source === 'ai') {
+        await handleAIGenerateLyrics(true);
+    } else if (content) {
+        const newMetadata: TrackMetadata = {
+            ...trackMetadata,
+            lyrics: {
+                ...(trackMetadata.lyrics ?? {}),
+                [currentTrack.url]: content,
+            },
+        };
+        setTrackMetadata(newMetadata);
+        await saveTrackMetadata(newMetadata);
+        setLyricsResult(content);
+        setIsLyricsModalOpen(true);
     }
   };
 
@@ -1067,7 +1099,7 @@ const App: React.FC = () => {
         onBalanceChange={handleBalanceChange}
         onBassBoostToggle={handleBassBoostToggle}
         onAnalyze={() => handleAnalyzeTrack()}
-        onGenerateLyrics={() => handleGenerateLyrics()}
+        onGenerateLyrics={handleGenerateLyrics}
         onTimeDisplayToggle={() => setTimeDisplayMode(p => p === 'elapsed' ? 'remaining' : 'elapsed')}
         onToggleSleepTimerPopover={() => setIsSleepTimerPopoverOpen(p => !p)}
         onSetSleepTimer={(mins) => {
@@ -1099,7 +1131,7 @@ const App: React.FC = () => {
         lyrics={lyricsResult} 
         isLoading={isGeneratingLyrics} 
         trackName={currentTrack?.name ?? null}
-        onRegenerate={() => handleGenerateLyrics(true)}
+        onRegenerate={() => handleAIGenerateLyrics(true)}
       />
       <AddToQueueModal isOpen={!!trackToAddToPlaylist} onClose={() => setTrackToAddToPlaylist(null)} playlists={playlists} onSelectPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylistAndAdd} trackName={trackToAddToPlaylist?.name ?? null} />
       <ShortcutsModal isOpen={isShortcutsModalOpen} onClose={() => setIsShortcutsModalOpen(false)} />
@@ -1144,6 +1176,12 @@ const App: React.FC = () => {
         tracks={allTracks}
         volume={volume}
         currentTrack={currentTrack}
+      />
+       <LyricsSourceModal
+        isOpen={isLyricsSourceModalOpen}
+        onClose={() => setIsLyricsSourceModalOpen(false)}
+        onConfirm={handleLyricsSourceSelected}
+        trackName={currentTrack?.name ?? null}
       />
     </div>
   );
