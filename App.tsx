@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
-import type { Track, TrackMetadata, AnalysisResult, Playlist as PlaylistType, ListeningStats, SoundboardSheetData } from './types';
+import type { Track, TrackMetadata, AnalysisResult, Playlist as PlaylistType, ListeningStats, SoundboardSheetData, SoundboardPad } from './types';
 import Playlist from './components/Playlist';
 import PlayerControls from './components/PlayerControls';
 import ConfirmationModal from './components/ConfirmationModal';
@@ -124,6 +124,7 @@ const App: React.FC = () => {
   // --- Soundboard State ---
   const [soundboardSheets, setSoundboardSheets] = useState<SoundboardSheetData>({});
   const [currentSoundboardSheet, setCurrentSoundboardSheet] = useState(0);
+  const [activeSoundPads, setActiveSoundPads] = useState<Set<number>>(new Set());
 
   // --- Sleep Timer State ---
   const [sleepTimerId, setSleepTimerId] = useState<number | null>(null);
@@ -145,6 +146,7 @@ const App: React.FC = () => {
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const soundboardFolderInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
@@ -152,8 +154,7 @@ const App: React.FC = () => {
   const bassBoostNodeRef = useRef<BiquadFilterNode | null>(null);
   const vocalReducerNodeRef = useRef<BiquadFilterNode | null>(null);
   const currentTrackRef = useRef<Track | null>(null);
-  const audioPoolRef = useRef<HTMLAudioElement[]>([]);
-  const audioPoolIndexRef = useRef(0);
+  const playingSoundsRef = useRef<Map<number, HTMLAudioElement>>(new Map());
 
   // --- Utility Functions ---
   const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve((reader.result as string).split(',')[1]); reader.onerror = (error) => reject(error); });
@@ -653,20 +654,45 @@ const App: React.FC = () => {
     }
   };
 
-  const playSoundEffect = useCallback((url: string) => {
-    const POOL_SIZE = 10;
-    if (audioPoolRef.current.length === 0) {
-      for (let i = 0; i < POOL_SIZE; i++) {
-        audioPoolRef.current.push(new Audio());
-      }
-    }
-    
-    const audio = audioPoolRef.current[audioPoolIndexRef.current];
-    audio.src = url;
-    audio.volume = volume;
-    audio.play().catch(e => console.error("Sound effect playback error:", e));
+  const handleToggleSoundPad = useCallback((pad: SoundboardPad) => {
+    const playingAudio = playingSoundsRef.current.get(pad.id);
 
-    audioPoolIndexRef.current = (audioPoolIndexRef.current + 1) % POOL_SIZE;
+    if (playingAudio) {
+        // Sound is playing, so stop it.
+        playingAudio.pause();
+        playingAudio.currentTime = 0;
+        playingSoundsRef.current.delete(pad.id);
+        setActiveSoundPads(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(pad.id);
+            return newSet;
+        });
+    } else {
+        // Sound is not playing, so start it.
+        const audio = new Audio(pad.soundUrl);
+        audio.volume = volume;
+        audio.play().catch(e => console.error("Sound effect playback error:", e));
+        
+        playingSoundsRef.current.set(pad.id, audio);
+        setActiveSoundPads(prev => {
+            const newSet = new Set(prev);
+            newSet.add(pad.id);
+            return newSet;
+        });
+
+        audio.addEventListener('ended', () => {
+            // Clean up when sound finishes naturally.
+            // Check if this is still the current audio for this pad ID.
+            if (playingSoundsRef.current.get(pad.id) === audio) {
+                playingSoundsRef.current.delete(pad.id);
+                setActiveSoundPads(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(pad.id);
+                    return newSet;
+                });
+            }
+        }, { once: true });
+    }
   }, [volume]);
 
   const handleUpdateSoundboardPad = async (sheet: number, id: number, name: string, soundUrl: string) => {
@@ -678,6 +704,82 @@ const App: React.FC = () => {
     }
   };
   
+  const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (event.target?.result) {
+                resolve(event.target.result as string);
+            } else {
+                reject(new Error("Failed to read file"));
+            }
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+  };
+
+  const handleLoadSoundboardFolder = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac', '.opus'];
+    const audioFiles = [...files]
+        .filter(f => AUDIO_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext)))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (audioFiles.length === 0) {
+        alert('No supported audio files found in the selected folder.');
+        if (event.target) event.target.value = '';
+        return;
+    }
+
+    const useFileName = window.confirm('Do you want to name the pads using the audio file names?');
+    alert(`Loading ${audioFiles.length} sounds... This may take a moment.`);
+
+    const newSheets = JSON.parse(JSON.stringify(soundboardSheets));
+    let currentSheetIndex = currentSoundboardSheet;
+    let currentPadIndexInSheet = 0;
+    const totalSheets = 9;
+    const padsPerSheet = 16;
+    let filesLoadedCount = 0;
+
+    for (const file of audioFiles) {
+        if (currentSheetIndex >= totalSheets) {
+            alert(`Soundboard is full. ${filesLoadedCount} of ${audioFiles.length} files were loaded.`);
+            break;
+        }
+
+        try {
+            const soundUrl = await fileToDataUri(file);
+            const padName = useFileName ? file.name.replace(/\.[^/.]+$/, "").substring(0, 20) : newSheets[currentSheetIndex][currentPadIndexInSheet].name;
+            const padToUpdate = newSheets[currentSheetIndex][currentPadIndexInSheet];
+            padToUpdate.name = padName;
+            padToUpdate.soundUrl = soundUrl;
+            filesLoadedCount++;
+        } catch (error) {
+            console.error("Error processing file:", file.name, error);
+        }
+
+        currentPadIndexInSheet++;
+        if (currentPadIndexInSheet >= padsPerSheet) {
+            currentPadIndexInSheet = 0;
+            currentSheetIndex++;
+        }
+    }
+
+    setSoundboardSheets(newSheets);
+    await saveSoundboardSheets(newSheets);
+
+    if (event.target) event.target.value = '';
+    
+    if (filesLoadedCount < audioFiles.length && currentSheetIndex >= totalSheets) {
+        // This case is handled by the "Soundboard is full" alert.
+    } else {
+        alert(`${filesLoadedCount} sounds loaded successfully!`);
+    }
+  };
+
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -1121,6 +1223,7 @@ const App: React.FC = () => {
 
       <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} onCanPlayThrough={handleCanPlayThrough} crossOrigin="anonymous" />
       <input type="file" ref={fileInputRef} onChange={handleFolderSelect} className="hidden" multiple {...{webkitdirectory: "", directory: ""}} />
+      <input type="file" ref={soundboardFolderInputRef} onChange={handleLoadSoundboardFolder} className="hidden" multiple {...{webkitdirectory: "", directory: ""}} />
       <ConfirmationModal isOpen={isClearConfirmOpen} onClose={() => setIsClearConfirmOpen(false)} onConfirm={handleClearPlaylist} title="Clear Entire Jukebox?">
         <p className="text-sm text-[var(--text-secondary)]">Are you sure you want to permanently delete all tracks and playlists? This action cannot be undone.</p>
       </ConfirmationModal>
@@ -1153,7 +1256,9 @@ const App: React.FC = () => {
         currentSheet={currentSoundboardSheet}
         onSheetChange={setCurrentSoundboardSheet}
         onUpdatePad={handleUpdateSoundboardPad}
-        onPlaySound={playSoundEffect}
+        onTogglePad={handleToggleSoundPad}
+        activePads={activeSoundPads}
+        onLoadFolderClick={() => soundboardFolderInputRef.current?.click()}
       />
        <KaraokeModal
         isOpen={isKaraokeModalOpen}

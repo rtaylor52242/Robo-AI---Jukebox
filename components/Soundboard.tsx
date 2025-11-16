@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import type { SoundboardPad, SoundboardSheetData } from '../types';
-import { CloseIcon, UploadIcon, NextIcon, PrevIcon } from './Icons';
+import { CloseIcon, UploadIcon, NextIcon, PrevIcon, FolderMusicIcon } from './Icons';
 
 interface SoundboardProps {
     isOpen: boolean;
@@ -9,7 +9,9 @@ interface SoundboardProps {
     currentSheet: number;
     onSheetChange: (sheetIndex: number) => void;
     onUpdatePad: (sheet: number, id: number, name: string, soundUrl: string) => void;
-    onPlaySound: (url: string) => void;
+    onTogglePad: (pad: SoundboardPad) => void;
+    activePads: Set<number>;
+    onLoadFolderClick: () => void;
 }
 
 const Pad: React.FC<{
@@ -79,17 +81,10 @@ const Pad: React.FC<{
 };
 
 
-const Soundboard: React.FC<SoundboardProps> = ({ isOpen, onClose, sheets, currentSheet, onSheetChange, onUpdatePad, onPlaySound }) => {
+const Soundboard: React.FC<SoundboardProps> = ({ isOpen, onClose, sheets, currentSheet, onSheetChange, onUpdatePad, onTogglePad, activePads, onLoadFolderClick }) => {
     const [editMode, setEditMode] = useState(false);
-    const [activePad, setActivePad] = useState<number | null>(null);
 
     if (!isOpen) return null;
-    
-    const handlePlay = (pad: SoundboardPad) => {
-        onPlaySound(pad.soundUrl);
-        setActivePad(pad.id);
-        setTimeout(() => setActivePad(null), 200);
-    };
 
     const padsForCurrentSheet = sheets[currentSheet] || [];
     const totalSheets = 9;
@@ -118,6 +113,15 @@ const Soundboard: React.FC<SoundboardProps> = ({ isOpen, onClose, sheets, curren
                             </button>
                         </div>
 
+                        <button
+                            onClick={onLoadFolderClick}
+                            disabled={!editMode}
+                            className="p-1.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/70 hover:text-[var(--text-primary)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Load Folder to current sheet"
+                        >
+                            <FolderMusicIcon className="w-5 h-5" />
+                        </button>
+                        
                         <div className="flex items-center space-x-2">
                             <span className={`text-xs font-semibold ${editMode ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`}>
                                 Edit
@@ -140,8 +144,8 @@ const Soundboard: React.FC<SoundboardProps> = ({ isOpen, onClose, sheets, curren
                                 pad={pad}
                                 editMode={editMode}
                                 onUpdate={(name, soundUrl) => onUpdatePad(currentSheet, pad.id, name, soundUrl)}
-                                onPlay={() => handlePlay(pad)}
-                                isActive={activePad === pad.id}
+                                onPlay={() => onTogglePad(pad)}
+                                isActive={activePads.has(pad.id)}
                             />
                         ))}
                     </div>
