@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { CloseIcon } from './Icons';
 
@@ -11,7 +10,7 @@ interface HelpModalProps {
 const HelpSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <div className="py-3">
         <h3 className="text-lg font-semibold text-[var(--accent-primary)] mb-2">{title}</h3>
-        <div className="text-[var(--text-secondary)] space-y-2 text-sm leading-relaxed">{children}</div>
+        <div className="text-[var(--text-secondary)] space-y-2 text-base leading-relaxed">{children}</div>
     </div>
 );
 
@@ -36,13 +35,28 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                 </ul>
             </HelpSection>
             <HelpSection title="Playlist Management">
-                <p>The sidebar on the left organizes your music. If you've connected Spotify, you can switch between your <strong>Local</strong> library and <strong>Spotify</strong> playlists using the switcher at the top.</p>
-                <p>For your local library, you can view all tracks, see your liked songs, and filter by star rating.</p>
-                <p>Create your own custom local playlists by clicking <strong>"New Playlist"</strong>. To add a song to a playlist, hover over it in the main list and click the <strong className="text-[var(--accent-primary)]">+</strong> icon.</p>
-                <p>You can re-order songs within a custom local playlist by dragging and dropping them.</p>
+                <p>The sidebar on the left organizes your music. It's resizable—just drag the right edge! If you've connected Spotify, you can switch between your <strong>Local</strong> library and <strong>Spotify</strong> playlists using the switcher at the top.</p>
+                <p>For your local library, you can view all tracks, see your liked songs, and filter by star rating. Hover over any local track to reveal controls to:</p>
+                <ul className="list-disc list-inside pl-4">
+                    <li><strong>Like</strong> (heart icon) or <strong>Rate</strong> (star icons) a song.</li>
+                    <li>Add it to a custom playlist with the <strong className="text-[var(--accent-primary)]">+</strong> icon.</li>
+                    <li><strong>Share</strong> the track name via your device's share menu or copy it to the clipboard.</li>
+                </ul>
+                <p>Create your own custom local playlists by clicking <strong>"New Playlist"</strong>. You can re-order songs within a custom local playlist by dragging and dropping them.</p>
             </HelpSection>
             <HelpSection title="AI-Powered Features">
-                 <p><strong>Generate Lyrics:</strong> Click the lyrics icon in the player controls. For local files, the AI will listen to the audio and transcribe it. For Spotify tracks, it will look up the lyrics. Generated lyrics for local tracks are automatically saved—the next time you open them, they'll load instantly. Use the <strong>Regenerate</strong> button if you want a new version, or the <strong>Share</strong> button to send the lyrics to others.</p>
+                 <p><strong>Generate Lyrics:</strong> Click the lyrics icon in the player controls. The behavior changes based on the song source:</p>
+                <ul className="list-disc list-inside pl-4">
+                    <li><strong>For Spotify Tracks:</strong> The app will look up and display the lyrics for you.</li>
+                    <li><strong>For Local Files:</strong> A menu will appear, giving you three options to add lyrics:
+                        <ul className="list-disc list-inside pl-8 py-1">
+                            <li><strong>Generate with Gemini AI:</strong> The AI will listen to the audio and transcribe the lyrics. This is great for songs where you can't find the lyrics online.</li>
+                            <li><strong>Upload File:</strong> You can upload your own <code>.txt</code> or <code>.lrc</code> (timed lyrics) file.</li>
+                            <li><strong>Paste Text:</strong> Copy and paste lyrics from any source.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <p>Lyrics for local tracks are saved automatically—the next time you open them, they'll load instantly. In the lyrics window, you can use the <strong>Regenerate</strong> button for an updated AI version or <strong>Share</strong> the text.</p>
                  <p><strong>Song Analysis (Local Files Only):</strong> Click the brain icon to use the Gemini AI to get a deep analysis of the current track's structure, musical elements, lyrics, and more. You can even get a prompt to regenerate a similar song!</p>
             </HelpSection>
             <HelpSection title="Karaoke Mode (Local Files Only)">
@@ -64,12 +78,13 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                     <li><strong>Play:</strong> Simply click any pad to play its sound effect over your music.</li>
                     <li><strong>Navigate:</strong> Use the "Next" and "Previous" buttons in the soundboard header to switch between the 9 sheets.</li>
                     <li><strong>Customize:</strong> Toggle the "Edit" switch in the header. In edit mode, you can click on any pad to change its name and upload your own local audio file as a new sound effect. All your changes are saved automatically.</li>
-                </ul>
+                    <li><strong>Bulk Upload:</strong> To quickly fill your soundboard, toggle "Edit" mode, then click the <strong>folder icon</strong> in the header. You can select a folder from your computer, and all supported audio files within it will be loaded onto the pads, starting from your currently selected sheet. You'll be asked if you want to automatically name the pads based on their filenames.</li>
+                 </ul>
             </HelpSection>
             <HelpSection title="DJ Mode (Local Files Only)">
                 <p>Click the DJ icon in the player controls to open a professional two-deck mixing interface. Here's how to use it:</p>
                 <ul className="list-disc list-inside pl-4">
-                    <li><strong>Loading Tracks:</strong> Click "Load Track L" or "Load Track R" to open your library and select a song for each deck. The app will analyze the track and generate a colored waveform.</li>
+                    <li><strong>Loading Tracks:</strong> Click "Load Track L" or "Load Track R" to open your library and select a song for each deck. <strong>Tip:</strong> When you first open DJ Mode, the currently playing song from the main player will automatically load into Deck L!</li>
                     <li><strong>Dual Waveform Display:</strong> At the top, you'll see both tracks' waveforms running in parallel. They are color-coded by frequency (Pink for bass, Cyan for mids, Yellow for highs) to help you visually plan your transitions.</li>
                     <li><strong>Playback:</strong> Each deck has its own Play/Pause button, a CUE button to return to the start, and a vertical Pitch slider to adjust the track's speed (BPM).</li>
                     <li><strong>Mixing:</strong> Use the horizontal <strong>Crossfader</strong> at the bottom to blend between Deck L and Deck R. For a perfect transition, click the <strong>Auto Mix</strong> button to have the crossfader glide automatically over 8 seconds.</li>

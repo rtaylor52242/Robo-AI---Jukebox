@@ -1272,6 +1272,16 @@ const App: React.FC = () => {
         duration={duration}
         isVocalReductionOn={isVocalReductionOn}
         onToggleVocalReduction={handleToggleVocalReduction}
+        isPlaying={isPlaying}
+        isShuffle={isShuffle}
+        isRepeat={isRepeat}
+        progress={progress}
+        onPlayPause={handlePlayPause}
+        onNext={playNext}
+        onPrev={playPrev}
+        onSeek={handleSeek}
+        onShuffleToggle={() => setIsShuffle(!isShuffle)}
+        onRepeatToggle={() => setIsRepeat(!isRepeat)}
       />
       <DJMode
         isOpen={isDjModeOpen}
